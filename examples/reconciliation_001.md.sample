@@ -1,0 +1,109 @@
+
+## Reconciliation Report: Task Execution Summary
+
+**Goal:** Synthesize a realistic reconciliation report based on the 4-task plan in `examples/plan.yml.sample`. Imagine all 4 tasks ran (3 succeeded, 1 had a fallback or test failure for didactic value), then write the reconciliation report a real human supervisor would want to read.
+
+**Timestamp (UTC):** 2026-04-28T10:30:00Z
+
+**Task Count by Agent:**
+- claude: 4
+
+---
+
+## Per-task summary
+
+### T1 — claude — define-auth-contract
+*   **Status:** ✅
+*   **Files changed:**
+    *   `src/auth/contracts.py`: +50 lines
+    *   `types/auth.ts`: +20 lines
+*   **Tests run:** N/A (no tests added by this task)
+*   **Risks:** Low
+*   **AI Result:** `.ai/codex_result_001_define-auth-contract.md`
+*   **Logs:** `/tmp/agent-collab-skills-fix/logs/claude/define-auth-contract.log`
+
+### T2 — claude — implement-auth-middleware
+*   **Status:** ✅
+*   **Files changed:**
+    *   `src/middleware/auth.py`: +150 lines
+    *   `src/server.py`: +10 lines
+*   **Tests run:** N/A (tests were added in T3)
+*   **Risks:** Medium (potential subtle interaction with existing auth logic if contract is not strictly followed)
+*   **AI Result:** `.ai/codex_result_002_implement-auth-middleware.md`
+*   **Logs:** `/tmp/agent-collab-skills-fix/logs/claude/implement-auth-middleware.log`
+
+### T3 — claude — add-auth-tests
+*   **Status:** ❌
+*   **Files changed:**
+    *   `tests/auth/test_middleware.py`: +200 lines
+*   **Tests run:**
+    *   Command: `pytest tests/auth/test_middleware.py`
+    *   Result: 3 tests failed, 47 passed.
+        *   `tests/auth/test_middleware.py::test_middleware_valid_token` - FAILED
+        *   `tests/auth/test_middleware.py::test_middleware_token_missing_roles` - FAILED
+        *   `tests/auth/test_middleware.py::test_middleware_invalid_signature` - FAILED
+*   **Risks:** High (auth middleware may have bugs, test setup issues, or incorrect assertions; potential security vulnerability if token validation is flawed)
+*   **AI Result:** `.ai/codex_result_003_add-auth-tests.md`
+*   **Logs:** `/tmp/agent-collab-skills-fix/logs/claude/add-auth-tests.log`
+
+### T4 — claude — refactor-user-model
+*   **Status:** ✅
+*   **Files changed:**
+    *   `src/models/user.py`: +30 lines
+    *   `prisma/schema.prisma`: +5 lines
+*   **Tests run:**
+    *   Command: `pytest tests/models/test_user.py`
+    *   Result: 15 passed.
+*   **Risks:** Low
+*   **AI Result:** `.ai/codex_result_004_refactor-user-model.md`
+*   **Logs:** `/tmp/agent-collab-skills-fix/logs/claude/refactor-user-model.log`
+
+---
+
+## Cross-task analysis
+
+### Agreement
+*   T1 and T2: T1 defined contracts for authentication, which T2 used to implement the middleware. This establishes a clear dependency and expected interaction.
+*   T4: The refactoring of the user model appears independent of the authentication flow changes, with no direct overlaps in files or functionality.
+
+### Conflicts
+*   **File-level overlap and contradiction:**
+    *   **Files:** `src/middleware/auth.py` (modified by T2), `tests/auth/test_middleware.py` (modified by T3), and implicitly `src/auth/contracts.py` (modified by T1).
+    *   **Description:** T3's tests failed to validate the correct parsing of authentication tokens. Specifically, `test_middleware_valid_token` and `test_middleware_token_missing_roles` indicate that the middleware (T2) is not correctly handling token payloads according to the expected contract (T1). The `test_middleware_invalid_signature` failure suggests a more fundamental issue with token validation logic. This indicates a discrepancy between the auth contract defined in T1, the implementation in T2, and the expected behavior tested in T3.
+
+### Aggregated risks
+*   **High:**
+    *   Potential bugs in authentication middleware logic (T3).
+    *   Security vulnerabilities due to flawed token validation or parsing (T3).
+*   **Medium:**
+    *   Subtle integration issues between auth contract and implementation (T2).
+*   **Low:**
+    *   Minor changes in model definitions and schema (T4).
+    *   Typing/contract definition changes (T1).
+
+---
+
+## Recommended action
+
+**Pattern C: Retry Needed**
+*   **Reason:** Task T3 failed its tests, indicating potential bugs in the authentication middleware or incorrect test assertions. The identified conflict suggests T2's implementation might not fully adhere to T1's contract, and T3's tests highlighted this.
+*   **Action:**
+    1.  Investigate the failures in `tests/auth/test_middleware.py` (specifically `test_middleware_valid_token`, `test_middleware_token_missing_roles`, `test_middleware_invalid_signature`).
+    2.  Correct the test assertions in `tests/auth/test_middleware.py` if they are found to be incorrect.
+    3.  If tests are correct, modify `src/middleware/auth.py` to align with `src/auth/contracts.py` and resolve the identified parsing/validation issues.
+    4.  Re-run T3 (`pytest tests/auth/test_middleware.py`).
+    5.  If T3 passes, proceed to merge. If T3 continues to fail, escalate for manual review or further investigation.
+*   **Shell Commands (Illustrative):**
+    ```bash
+    # Analyze test failures for T3
+    pytest tests/auth/test_middleware.py::test_middleware_valid_token
+    pytest tests/auth/test_middleware.py::test_middleware_token_missing_roles
+    pytest tests/auth/test_middleware.py::test_middleware_invalid_signature
+
+    # Example fix for T2 (if needed, based on test failure analysis)
+    # NOTE: Actual fix would involve 'replace' or 'write_file' operations.
+    # Example: echo 'Corrected token parsing logic.' >> src/middleware/auth.py
+
+    # Re-run T3
+    pytest tests/auth/test_middleware.py
+    ```

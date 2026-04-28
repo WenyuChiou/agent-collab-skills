@@ -1,0 +1,85 @@
+round: 1
+goal: "Refactor src/auth/ from monolithic legacy.py into a plugin-based architecture with AuthProvider implementations and backward-compatible entry points."
+budget:
+  tokens: 180000
+  duration_min: 75
+created_utc: "2026-04-28T04:00:00Z"
+tasks:
+  - id: T1
+    agent: claude
+    slug: define-auth-contract
+    description: "Review legacy auth flows and lock the target provider interface, registry shape, and backward-compatibility rules before code changes begin."
+    depends_on: []
+    files_in_scope:
+      - "src/auth/legacy.py"
+      - "src/auth/__init__.py"
+      - "src/auth/interfaces.py"
+      - "src/auth/registry.py"
+      - "tests/auth/**"
+    files_out_of_scope:
+      - "src/billing/**"
+      - "docs/**"
+    success_criteria:
+      - "Produces an explicit decision on AuthProvider ABC methods, provider registration flow, and which legacy.py symbols must remain stable for existing callers."
+      - "Lists any blockers or edge cases in tests/auth/ that would make a straight mechanical refactor unsafe."
+  - id: T2
+    agent: codex
+    slug: scaffold-provider-core
+    description: "Create the provider core by extracting AuthProvider abstractions, a provider registry, and compatibility imports without changing runtime behavior yet."
+    depends_on:
+      - T1
+    files_in_scope:
+      - "src/auth/interfaces.py"
+      - "src/auth/registry.py"
+      - "src/auth/__init__.py"
+      - "src/auth/legacy.py"
+      - "tests/auth/test_registry.py"
+    files_out_of_scope:
+      - "src/auth/providers/*.py"
+      - "docs/**"
+    success_criteria:
+      - "python -m pytest tests/auth/test_registry.py passes"
+      - "python -m mypy src/auth/interfaces.py src/auth/registry.py exits 0"
+      - "Existing imports from src.auth.legacy continue to resolve for unchanged call sites."
+  - id: T3
+    agent: gemini
+    slug: audit-legacy-surface
+    description: "Read the auth package and test suite end-to-end to identify call-site expectations, naming drift, and migration risks around preserving legacy.py behavior."
+    depends_on:
+      - T1
+    files_in_scope:
+      - "src/auth/**/*.py"
+      - "tests/auth/**/*.py"
+    files_out_of_scope:
+      - "src/payments/**"
+      - "README.md"
+    success_criteria:
+      - "Produces a concise compatibility report covering constructor signatures, exception behavior, and any provider-specific assumptions that refactor tasks must preserve."
+      - "Flags every remaining direct dependency on monolithic src/auth/legacy.py that would block a provider split."
+  - id: T4
+    agent: codex
+    slug: split-providers-and-shims
+    description: "Move concrete auth implementations into provider modules, wire them through the registry, and keep legacy.py as a backward-compatible shim for existing callers."
+    depends_on:
+      - T1
+      - T2
+      - T3
+    files_in_scope:
+      - "src/auth/legacy.py"
+      - "src/auth/providers/__init__.py"
+      - "src/auth/providers/google.py"
+      - "src/auth/providers/github.py"
+      - "src/auth/providers/password.py"
+      - "src/auth/interfaces.py"
+      - "src/auth/registry.py"
+      - "tests/auth/test_legacy_compat.py"
+      - "tests/auth/test_providers.py"
+    files_out_of_scope:
+      - "src/auth/session.py"
+      - "src/web/**"
+      - ".coord/**"
+    success_criteria:
+      - "python -m pytest tests/auth/test_providers.py tests/auth/test_legacy_compat.py passes"
+      - "python -m mypy src/auth/ exits 0"
+      - "rg \"from src\\.auth\\.legacy import .*Google|GitHub|Password\" src tests returns no provider-class imports outside the compatibility shim."
+      - "Legacy callers can still construct the old entry points while new code can resolve providers via the registry."

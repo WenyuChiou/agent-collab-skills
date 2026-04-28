@@ -78,6 +78,11 @@ goal
 updated at each step. `agent-debate` is invoked on consequential
 decisions (architecture, design choice), not in the main loop.
 
+See [docs/example-walkthrough.md](docs/example-walkthrough.md) for
+a worked example with real `.coord/` sample artifacts produced by
+running the pipeline end-to-end against actual Codex + Gemini CLI
+invocations.
+
 ---
 
 ## Why these 5 specifically

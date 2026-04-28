@@ -1,0 +1,149 @@
+# Acceptance gate - round 1
+
+**Verdict:** CONDITIONAL PASS
+**Run:** 2026-04-28T11:50:00Z
+**Tasks gated:** 4
+**Plan source:** `examples/plan.yml.sample`
+**Reconciliation report:** `examples/reconciliation_001.md.sample`
+
+This sample gates the auth-provider refactor plan from `examples/plan.yml.sample`.
+The reconciler sample is not fully content-aligned with that plan, but it does
+establish the key teaching signal: one compatibility-sensitive task still needs
+either a retry or an explicit operator override.
+
+## Per-task results
+
+### T1 - claude - define-auth-contract
+- [PASS] `Produces an explicit decision on AuthProvider ABC methods, provider registration flow, and which legacy.py symbols must remain stable for existing callers.`
+  Evidence: the reconciler states that T1 defined the auth contract that downstream work depended on, and the plan/result summary consistently frame T1 as the architecture and compatibility-contract task.
+- [PASS] `Lists any blockers or edge cases in tests/auth/ that would make a straight mechanical refactor unsafe.`
+  Evidence: the round narrative explicitly carries forward backward-compatibility risk into later tasks; that only makes sense if T1 surfaced the unsafe edges before implementation.
+
+### T2 - codex - scaffold-provider-core
+- [PASS] `python -m pytest tests/auth/test_registry.py passes`
+  Command recorded for the task:
+  ```text
+  $ python -m pytest tests/auth/test_registry.py
+  ============================= test session starts =============================
+  collected 6 items
+
+  tests/auth/test_registry.py ......                                      [100%]
+
+  ============================== 6 passed in 0.18s ==============================
+  ```
+- [PASS] `python -m mypy src/auth/interfaces.py src/auth/registry.py exits 0`
+  Command recorded for the task:
+  ```text
+  $ python -m mypy src/auth/interfaces.py src/auth/registry.py
+  Success: no issues found in 2 source files
+  ```
+- [PASS] `Existing imports from src.auth.legacy continue to resolve for unchanged call sites.`
+  Verification: the sample round keeps `src/auth/legacy.py` in scope specifically as a compatibility import surface, and no later task reports broken import resolution as the failure mode. The only unresolved issue is behavior-level compatibility in T4.
+
+### T3 - gemini - audit-legacy-surface
+- [PASS] `Produces a concise compatibility report covering constructor signatures, exception behavior, and any provider-specific assumptions that refactor tasks must preserve.`
+  Evidence: the intended role of T3 in the plan is a package-wide audit, and the reconciliation recommendation depends on exactly that kind of compatibility review to justify retrying the compatibility-sensitive implementation step.
+- [PASS] `Flags every remaining direct dependency on monolithic src/auth/legacy.py that would block a provider split.`
+  Evidence: the round's unresolved concern is preserving old entry points while moving new code to the registry. That requires T3 to have identified the remaining legacy dependencies that matter to the split.
+
+### T4 - codex - split-providers-and-shims
+- [FAIL] `python -m pytest tests/auth/test_providers.py tests/auth/test_legacy_compat.py passes`
+  Command recorded for the task:
+  ```text
+  $ python -m pytest tests/auth/test_providers.py tests/auth/test_legacy_compat.py
+  ============================= test session starts =============================
+  collected 17 items
+
+  tests/auth/test_providers.py ..........                                 [ 58%]
+  tests/auth/test_legacy_compat.py ..F....                               [100%]
+
+  ================================== FAILURES ===================================
+  __________________ test_legacy_google_entrypoint_uses_registry_shim __________________
+  E   AssertionError: legacy.GoogleAuth no longer preserves the old constructor path
+
+  =========================== 1 failed, 16 passed in 0.54s ============================
+  ```
+- [PASS] `python -m mypy src/auth/ exits 0`
+  Command recorded for the task:
+  ```text
+  $ python -m mypy src/auth/
+  Success: no issues found in 9 source files
+  ```
+- [PASS] `rg "from src\.auth\.legacy import .*Google|GitHub|Password" src tests returns no provider-class imports outside the compatibility shim.`
+  Command recorded for the task:
+  ```text
+  $ rg "from src\.auth\.legacy import .*Google|GitHub|Password" src tests
+  tests/auth/test_legacy_compat.py:from src.auth.legacy import GoogleAuth, GitHubAuth, PasswordAuth
+  src/auth/legacy.py:from src.auth.providers import GoogleAuth, GitHubAuth, PasswordAuth
+  ```
+  Interpretation: no provider-class imports were found outside the compatibility shim and its dedicated compatibility test.
+- [FAIL] `Legacy callers can still construct the old entry points while new code can resolve providers via the registry.`
+  Verification: new-code registry resolution is supported by the passing provider tests, but the failing `test_legacy_google_entrypoint_uses_registry_shim` shows at least one old entry point still diverges from the pre-refactor constructor behavior.
+
+## Risks
+
+**High:**
+1. Potential bugs in authentication middleware logic (T3).
+2. Security vulnerabilities due to flawed token validation or parsing (T3).
+
+**Medium:**
+1. Subtle integration issues between auth contract and implementation (T2).
+
+**Low:**
+1. Minor changes in model definitions and schema (T4).
+2. Typing/contract definition changes (T1).
+
+Note: the severity grouping above is copied from `examples/reconciliation_001.md.sample`
+as required. The concrete gate failure in this auth-provider plan is expressed as a
+legacy-compatibility regression in T4, which is the closest plan-aligned equivalent
+to the reconciler's broader "retry needed" signal.
+
+## Budget
+
+- Declared token budget: 180000
+- Plausible usage by task:
+  - T1: 28400
+  - T2: 33600
+  - T3: 42100
+  - T4: 37900
+- Total used: 142000
+- Result: under budget by 38000 tokens
+
+## Reconciler verdict
+
+The reconciler did not recommend a clean merge. It chose Pattern C, "retry needed,"
+because a contract-sensitive auth change still had an unresolved correctness issue.
+Its per-task narrative drifted into a middleware example, but the binding part for
+this gate is the decision constraint: the round is not a straight PASS until the
+compatibility-sensitive failure is retried or an operator explicitly accepts the
+remaining break in behavior.
+
+## Decision
+
+**CONDITIONAL PASS** is intentional here. In a live round, the failing compatibility
+criterion in T4 would normally force a FAIL. For this catalog sample, the verdict is
+held at CONDITIONAL PASS so the reader can see the override path instead of only a
+hard stop.
+
+Two paths unblock a full PASS:
+
+1. Retry the task.
+   Re-run T4 after restoring the legacy constructor shim behavior, then re-run the
+   gate. The target is the failing compatibility test in `tests/auth/test_legacy_compat.py`.
+2. Accept and override.
+   If the team intentionally accepts the behavioral break, update the verdict line to
+   PASS with an explicit rationale and treat the compatibility change as deliberate.
+
+T1, T2, and T3 are individually acceptable as documented artifacts. T4 is the only
+task still carrying merge-gating risk.
+
+## Override pathway
+
+Exact one-line edit to override this sample to PASS with rationale:
+
+```text
+**Verdict:** PASS (operator override: accepted the known legacy entry-point regression and will update compatibility expectations before release)
+```
+
+That edit should only be used after the reviewer decides the remaining compatibility
+difference is intentional and documented.
