@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.2] - 2026-04-28
+### Fixed
+- `agent-task-splitter` step 6a / step 7 / README known-issues: document `< /dev/null` stdin redirect for direct `codex exec` invocations. codex-cli ≥ 0.121.0 hangs at "Reading additional input from stdin..." without it. (Found in v0.1.1 verify dogfood; only surfaced when invoking codex directly, not through the `run_codex.sh` wrapper.)
+- `agent-task-splitter` step 6b: gemini invocation example now also includes `< /dev/null`. Same root cause as codex.
+- README known-issues: third bullet covers the codex/gemini stdin pattern explicitly.
+
 ## [0.1.1] - 2026-04-28
 ### Fixed
 - `agent-task-splitter`: result-summary path included in `files_in_scope` for generated task files (was missing, causing codex to flag self-conflicts at run time).

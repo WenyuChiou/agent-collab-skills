@@ -130,14 +130,27 @@ The pain points each one solves, in order:
   the prompt:
   ```bash
   TASK=$(cat .ai/gemini_task_<NNN>_<slug>.md)
-  gemini -p "$TASK" --yolo > .ai/gemini_log_<NNN>_<slug>.txt 2>&1
+  gemini -p "$TASK" --yolo \
+    < /dev/null > .ai/gemini_log_<NNN>_<slug>.txt 2>&1
   ```
   Side effect: gemini doesn't have file-system context for paths
   the task file references — make sure the prompt body itself
   contains all critical context, not just paths to read. The
   splitter skill's step 6b documents this.
-- **Codex inline-prompt mode is fine.** `codex exec` reads
-  gitignored files normally; only gemini has the conflict.
+- **Both `codex` and `gemini` hang at startup if stdin is open.**
+  When launching from a script or non-interactive shell, codex-cli
+  ≥ 0.121.0 prints "Reading additional input from stdin..." and
+  waits forever. Same for gemini-cli. **Workaround**: redirect
+  stdin to `/dev/null` on every direct invocation:
+  ```bash
+  codex exec --full-auto -m <model> "<prompt>" \
+    < /dev/null > .ai/codex_log_<NNN>_<slug>.txt 2>&1
+  ```
+  The `codex-delegate` wrapper script handles this internally; only
+  direct `codex exec` / `gemini -p` calls need the explicit
+  redirect.
+- **Codex reads gitignored files normally** — only gemini has the
+  gitignore conflict.
 - **Worked example** with sample `.coord/` artifacts and honest
   documentation of what real multi-agent runs look like:
   [docs/example-walkthrough.md](docs/example-walkthrough.md).

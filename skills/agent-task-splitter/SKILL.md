@@ -224,6 +224,20 @@ Path: `.ai/codex_task_<NNN>_<slug>.md`. `<NNN>` is the zero-padded
 > if it's not in scope, codex flags a self-conflict and may refuse
 > to write it.
 
+> **Critical (Codex invocation)**: when launching codex directly
+> (not via the `codex-delegate` wrapper script), **close stdin
+> with `< /dev/null`** — codex-cli ≥ 0.121.0 otherwise hangs at
+> "Reading additional input from stdin..." indefinitely. Pattern:
+>
+> ```bash
+> codex exec --full-auto -m gpt-5.4 \
+>   "Read .ai/codex_task_<NNN>_<slug>.md and execute all instructions inside." \
+>   < /dev/null > .ai/codex_log_<NNN>_<slug>.txt 2>&1
+> ```
+>
+> The `codex-delegate` wrapper script (`run_codex.sh`) handles this
+> internally; only direct `codex exec` calls need the redirect.
+
 #### 6b. Gemini task files (`agent: gemini`)
 
 Path: `.ai/gemini_task_<NNN>_<slug>.md`. Format follows
@@ -272,11 +286,13 @@ codex:
 > WILL FAIL with "file ignored by configured ignore patterns."
 >
 > Workaround: invoke gemini with the task content **inlined into
-> the prompt**:
+> the prompt**, and **close stdin** with `< /dev/null` so gemini
+> doesn't wait for input that won't come:
 >
 > ```bash
 > TASK=$(cat .ai/gemini_task_<NNN>_<slug>.md)
-> gemini -p "$TASK" --yolo > .ai/gemini_log_<NNN>_<slug>.txt 2>&1
+> gemini -p "$TASK" --yolo \
+>   < /dev/null > .ai/gemini_log_<NNN>_<slug>.txt 2>&1
 > ```
 >
 > When you produce the gemini task file, also produce a sibling
@@ -304,10 +320,21 @@ Task files ready:
   .ai/gemini_task_001_<slug3>.md
 
 Next steps:
-  # Run codex tasks (after T1 finishes, T2/T3 can run in parallel):
+  # Run codex tasks (after T1 finishes, T2/T3 can run in parallel).
+  # Option A (preferred) — use the codex-delegate wrapper:
   bash .claude/skills/codex-delegate/scripts/run_codex.sh \
     --prompt "Read .ai/codex_task_001_<slug1>.md and execute all instructions inside." \
     --log-file .ai/codex_log_001_<slug1>.txt
+
+  # Option B — direct codex exec (must close stdin or codex hangs):
+  codex exec --full-auto -m gpt-5.4 \
+    "Read .ai/codex_task_001_<slug1>.md and execute all instructions inside." \
+    < /dev/null > .ai/codex_log_001_<slug1>.txt 2>&1
+
+  # Run gemini tasks (must inline + close stdin per Known issues / step 6b):
+  TASK=$(cat .ai/gemini_task_001_<slug3>.md)
+  gemini -p "$TASK" --yolo \
+    < /dev/null > .ai/gemini_log_001_<slug3>.txt 2>&1
 
   # After all delegate tasks finish, reconcile:
   # invoke agent-output-reconciler in this session
