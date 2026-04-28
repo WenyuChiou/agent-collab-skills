@@ -47,6 +47,17 @@ bash scripts/install-all.sh        # macOS / Linux / git-bash
 pwsh scripts/install-all.ps1       # Windows PowerShell
 ```
 
+### 需要改 `CLAUDE.md` 嗎？
+
+**不用**。Claude Code 內建的 skill matching 會讀每個 `SKILL.md` 的 `description` 欄位、自動把使用者語句對到對應的 skill。Plugin 安裝是唯一一步 — 你說「把這個切給 Claude、Codex、Gemini」就會自動觸發 `agent-task-splitter`，不需要額外設定。
+
+以下兩種情況你*可以選擇*顯式把規則寫進 `~/.claude/CLAUDE.md`：
+
+- 你的 `CLAUDE.md` 已經有跟這些 skill 競爭的 delegation 協議（例如「永遠手寫 codex task 檔」這種既有硬規則，會搶走 routing 優先權）
+- 想強制特定行為（例如「multi-agent round 合併前一律跑 `agent-acceptance-gate`」）
+
+否則就讓 `CLAUDE.md` 維持原樣 — 這些 skill 預設靠 description-based discovery 運作。
+
 ---
 
 ## 5 個 Skill

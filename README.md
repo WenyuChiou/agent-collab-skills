@@ -47,6 +47,17 @@ bash scripts/install-all.sh        # macOS / Linux / git-bash
 pwsh scripts/install-all.ps1       # Windows PowerShell
 ```
 
+### Do I need to modify `CLAUDE.md`?
+
+**No.** Claude Code's built-in skill matching reads each `SKILL.md`'s `description` field and auto-routes user prompts. Plugin install is the only setup step — saying *"split this across Claude, Codex, and Gemini"* triggers `agent-task-splitter` without any extra configuration.
+
+You may optionally add explicit routing rules to your `~/.claude/CLAUDE.md` if you:
+
+- already have a delegation protocol there that competes with these skills (e.g., a long-standing *"always hand-write codex task files"* rule that would otherwise win the routing race)
+- want to enforce hard behaviors (e.g., *"always run `agent-acceptance-gate` before merging any multi-agent round"*)
+
+Otherwise leave `CLAUDE.md` alone — the skills are designed to work via description-based discovery.
+
 ---
 
 ## The 5 skills
