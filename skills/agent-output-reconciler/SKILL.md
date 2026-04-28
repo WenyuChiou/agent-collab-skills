@@ -88,6 +88,38 @@ Flag any task where:
 - `result_<NNN>_<slug>.md` missing → agent didn't write the
   required summary (acceptance criterion violated).
 
+### 2.5. Cross-task ID / slug consistency check (catches agent drift)
+
+Real multi-agent runs sometimes produce outputs that **claim to be
+about different tasks than they actually were**. Common cause:
+gemini under inline-prompt mode (no file-system access) hallucinates
+plausible-but-wrong task slugs and agent assignments because it
+doesn't have plan.yml loaded.
+
+For each agent's `result.md` summary, verify:
+
+1. **Task IDs in the summary match plan.yml's IDs.** If the agent
+   ran for `T2` per plan.yml, but its summary references "T1, T2,
+   T3, T4" as if doing all of them, that's drift — the agent
+   restated the entire plan instead of reporting on its own task.
+2. **Slugs match plan.yml's slugs.** If plan.yml says T2's slug is
+   `scaffold-provider-core` but the result.md mentions
+   `implement-auth-middleware` (a slug not in the plan), the agent
+   invented context.
+3. **Agent assignments match plan.yml.** If the agent's summary
+   claims "all 4 tasks were claude" but plan.yml has mixed
+   routing, the agent is treating its inline prompt as a
+   stand-alone planning exercise rather than a single-task report.
+
+Surface each drift as a **HIGH** severity item in the
+"Aggregated risks" section. Don't quietly ignore it; the gate
+needs to see it.
+
+If drift is severe (entire summary is about a different task /
+scenario), recommend re-running that task with file-system access
+or with the prompt body itself containing all critical context
+(rather than just paths to read).
+
 ### 3. Compute cross-task analysis
 
 Build three views:

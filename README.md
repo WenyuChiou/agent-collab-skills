@@ -120,6 +120,30 @@ The pain points each one solves, in order:
 
 ---
 
+## Known issues
+
+- **Gemini-cli refuses to read gitignored files.** The `.ai/`
+  directory is conventionally gitignored to keep transient task
+  files out of commits, but `gemini -p "Read .ai/gemini_task_*.md"`
+  fails with `file ignored by configured ignore patterns`.
+  **Workaround**: invoke gemini with the task content inlined into
+  the prompt:
+  ```bash
+  TASK=$(cat .ai/gemini_task_<NNN>_<slug>.md)
+  gemini -p "$TASK" --yolo > .ai/gemini_log_<NNN>_<slug>.txt 2>&1
+  ```
+  Side effect: gemini doesn't have file-system context for paths
+  the task file references — make sure the prompt body itself
+  contains all critical context, not just paths to read. The
+  splitter skill's step 6b documents this.
+- **Codex inline-prompt mode is fine.** `codex exec` reads
+  gitignored files normally; only gemini has the conflict.
+- **Worked example** with sample `.coord/` artifacts and honest
+  documentation of what real multi-agent runs look like:
+  [docs/example-walkthrough.md](docs/example-walkthrough.md).
+
+---
+
 ## Status & License
 
 MIT. Early-stage — the SKILL.md prompt scaffolding is complete and

@@ -7,7 +7,7 @@
   },
   "metadata": {
     "description": "Practical skills for orchestrating Claude + Codex + Gemini on the same task without losing state, missing conflicts, or merging unverified output.",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   "plugins": [
     {
@@ -15,7 +15,7 @@
       "description": "5 multi-agent collaboration skills auto-discovered from the source repo's skills/ subdirectory: agent-task-splitter, agent-output-reconciler, agent-debate, agent-shared-memory, agent-acceptance-gate.",
       "category": "productivity",
       "homepage": "https://github.com/WenyuChiou/agent-collab-skills",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "strict": true,
       "source": {
         "source": "url",

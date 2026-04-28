@@ -52,6 +52,24 @@ You may also read existing project context if relevant:
 
 ## Workflow
 
+### 0. Verify cwd is the project root before writing anything
+
+`.coord/plan.yml`, `.ai/<agent>_task_*.md`, and all downstream
+artifacts go to **the project the agents will modify**, not whatever
+directory Claude currently happens to be in. Before writing
+anything, confirm:
+
+1. The cwd matches the repo the user actually means.
+2. If the user is in a worktree (`.git` is a file pointing to
+   a worktree dir, not a real `.git/` directory), confirm they want
+   `.coord/` in the worktree or the main checkout — these can differ.
+3. If working across multiple repos in one conversation, ask which
+   one the multi-agent run targets.
+
+This step takes 5 seconds and prevents writing `.coord/plan.yml`
+to the wrong filesystem location, which silently breaks downstream
+agents that look for it relative to their own `-C`/cwd.
+
 ### 1. Understand the goal
 
 Restate the goal back to the user in 1-2 sentences before planning.
@@ -162,23 +180,30 @@ tasks:
 
 ### 6. Write per-agent task files
 
-For each task with `agent: codex`, write `.ai/codex_task_<NNN>_<slug>.md`
-where `<NNN>` is zero-padded `round` (`001` for round 1) and `<slug>`
-is the task's slug. Use the format `codex-delegate` expects:
+Codex and Gemini have **different task file conventions**. Don't use
+a single template for both — each delegate skill expects its own
+shape.
+
+#### 6a. Codex task files (`agent: codex`)
+
+Path: `.ai/codex_task_<NNN>_<slug>.md`. `<NNN>` is the zero-padded
+`round` (`001` for round 1). Format follows `codex-delegate`'s
+"Supervisor Workflow" section:
 
 ```markdown
 # Task: <description>
 
 ## Context
 - Repo: <absolute path>
-- Plan: .coord/plan.yml (round 1, task T2)
+- Plan: .coord/plan.yml (round <N>, task <T-id>)
 - Read these files first:
   - <files_in_scope items + relevant references>
 - Only modify (files_in_scope):
   - <files_in_scope items>
+  - .ai/codex_result_<NNN>_<slug>.md   ← REQUIRED: the result-summary file
 - Do NOT touch (files_out_of_scope):
   - <files_out_of_scope items>
-- Depends on outputs of: T1 (.ai/codex_result_001_extract-interfaces.md)
+- Depends on outputs of: <list T-ids + their result paths>
 
 ## Goal
 <task.description, expanded with concrete deliverable>
@@ -194,11 +219,78 @@ is the task's slug. Use the format `codex-delegate` expects:
   .ai/codex_result_<NNN>_<slug>.md
 ```
 
-For `agent: gemini`, do the same with `.ai/gemini_task_<NNN>_<slug>.md`.
+> **Critical**: `.ai/codex_result_<NNN>_<slug>.md` MUST appear in
+> `files_in_scope`. The Acceptance section requires writing there;
+> if it's not in scope, codex flags a self-conflict and may refuse
+> to write it.
 
-For `agent: claude`, **don't write a task file** — Claude executes
-inline in the current conversation. The plan.yml entry serves as
-the spec.
+#### 6b. Gemini task files (`agent: gemini`)
+
+Path: `.ai/gemini_task_<NNN>_<slug>.md`. Format follows
+`gemini-delegate`'s "Supervisor Workflow" — different sections from
+codex:
+
+```markdown
+# Task: <description>
+
+## Context
+- Repo: <absolute path>
+- Plan: .coord/plan.yml (round <N>, task <T-id>)
+- Read these files first:
+  - <files_in_scope items + relevant references>
+- Output file(s):
+  - <files this task produces>
+  - .ai/gemini_result_<NNN>_<slug>.md   ← REQUIRED: the result-summary file
+- Depends on outputs of: <list T-ids + their result paths>
+
+## Goal
+<task.description, expanded with concrete deliverable>
+
+## Language
+- Output language: <English | Traditional Chinese | Simplified Chinese | bilingual>
+- Tone: <formal | concise | technical | executive>
+- Audience: <who will read it>
+
+## Constraints
+- Preserve dates, proper nouns, code identifiers exactly.
+- Keep terminology consistent with referenced sources.
+- Do not invent facts missing from the inputs.
+
+## Acceptance
+- Required verification files: <files Claude will check after run>
+- Required sentinel strings: <strings the gate will grep for>
+- Required result summary: write a concise summary to
+  .ai/gemini_result_<NNN>_<slug>.md
+- Claude will perform a final review (terminology, factual accuracy,
+  schema adherence) before merging.
+```
+
+> **Critical (Gemini-specific)**: gemini-cli **refuses to read
+> gitignored files by default**. Since `.ai/` is conventionally
+> gitignored to keep transient task files out of commits, this means
+> `gemini -p "Read .ai/gemini_task_<NNN>_<slug>.md and execute"`
+> WILL FAIL with "file ignored by configured ignore patterns."
+>
+> Workaround: invoke gemini with the task content **inlined into
+> the prompt**:
+>
+> ```bash
+> TASK=$(cat .ai/gemini_task_<NNN>_<slug>.md)
+> gemini -p "$TASK" --yolo > .ai/gemini_log_<NNN>_<slug>.txt 2>&1
+> ```
+>
+> When you produce the gemini task file, also produce a sibling
+> shell snippet `.ai/gemini_run_<NNN>_<slug>.sh` with the inlined
+> invocation, so the user can run it directly without manual
+> assembly. Side effect of the inline mode: gemini doesn't have
+> file-system context for the task file's referenced inputs — make
+> sure the prompt body itself contains all critical context, not
+> just paths.
+
+#### 6c. Claude tasks (`agent: claude`)
+
+**Don't write a task file.** Claude executes inline in the current
+conversation. The plan.yml entry serves as the spec.
 
 ### 7. Hand off to the user
 
@@ -220,6 +312,34 @@ Next steps:
   # After all delegate tasks finish, reconcile:
   # invoke agent-output-reconciler in this session
 ```
+
+### 8. Re-plan workflow (when reassigning agents mid-round)
+
+If the user reassigns a task to a different agent **after** plan.yml
+and task files were already written (e.g., "actually, T2 should be
+gemini, not codex"):
+
+1. **Edit the agent assignment in `.coord/plan.yml`** for that
+   single task. Don't bulk-replace — surgical edit only. Bulk
+   `sed` replacements typically over-match and rewrite assignments
+   you wanted to keep.
+
+2. **Delete the obsolete task file** (e.g., the old
+   `.ai/codex_task_<NNN>_<slug>.md` if T2 was codex and is now
+   gemini). Lingering obsolete files confuse the reconciler — it
+   may pick them up and report on a task that didn't actually run.
+
+3. **Write the new task file** in the new agent's format (per step
+   6a / 6b). Slug stays the same; only the agent prefix changes.
+
+4. **If dependents already ran** (e.g., T3 ran depending on T2's
+   old codex output): note in the round's `.coord/memory.yml`
+   that T3's output was based on a now-stale T2; flag for re-review
+   in the reconciliation report.
+
+Re-planning mid-round is normal. The schema supports it; just be
+explicit about what changed instead of letting orphan files
+accumulate.
 
 ## What NOT to do
 
