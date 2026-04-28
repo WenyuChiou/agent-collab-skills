@@ -1,0 +1,26 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [0.1.1] - 2026-04-28
+### Fixed
+- `agent-task-splitter`: result-summary path included in `files_in_scope` for generated task files (was missing, causing codex to flag self-conflicts at run time).
+- `agent-task-splitter`: codex / gemini / claude task-file formats now split into separate steps 6a, 6b, 6c (previously one template; gemini drifted because of format mismatch).
+- `agent-task-splitter`: new step 0 verifies the working directory is the project root before writing `.coord/` (previously could silently target the wrong worktree).
+- `agent-task-splitter`: new step 8 documents the re-plan workflow when an agent gets reassigned mid-round (avoids orphan task files).
+- `agent-output-reconciler`: new step 2.5 checks task ID / slug / agent-assignment consistency across plan.yml and per-task result.md (catches gemini hallucination drift).
+- README: known-issues section documents the `gemini-cli` gitignore conflict and the inline-prompt workaround.
+
+## [0.1.0] - 2026-04-28
+### Added
+- Initial release of the `agent-collab-workspace` marketplace bundle plugin for multi-agent collaboration workflows.
+- Five packaged skills: `agent-task-splitter`, `agent-output-reconciler`, `agent-debate`, `agent-shared-memory`, and `agent-acceptance-gate`.
+- The `.coord/` directory convention for shared plans, reconciliation notes, and acceptance artifacts.
+- Three dogfood sample artifacts in `examples/`: `plan.yml.sample`, `reconciliation_001.md.sample`, and `acceptance_001.md.sample` (commit `71eb9fa`).
+- `docs/example-walkthrough.md` narrating the dogfood end-to-end run.
+- Install scripts, CI workflow, pytest tests, issue / PR templates.
+
+### Changed
+- Cross-links added in `codex-delegate` and `gemini-delegate-skill` SKILL.md so they reference `.coord/plan.yml` for round context when a multi-agent run is active.
