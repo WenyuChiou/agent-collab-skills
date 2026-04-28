@@ -1,0 +1,27 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "agent-collab-skills",
+  "description": "Multi-agent collaboration skills for Claude Code — task splitter, output reconciler, debate, shared memory, acceptance gate. Composes with codex-delegate / gemini-delegate.",
+  "owner": {
+    "name": "Wenyu Chiou"
+  },
+  "metadata": {
+    "description": "Practical skills for orchestrating Claude + Codex + Gemini on the same task without losing state, missing conflicts, or merging unverified output.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "agent-collab-workspace",
+      "description": "5 multi-agent collaboration skills auto-discovered from the source repo's skills/ subdirectory: agent-task-splitter, agent-output-reconciler, agent-debate, agent-shared-memory, agent-acceptance-gate.",
+      "category": "productivity",
+      "homepage": "https://github.com/WenyuChiou/agent-collab-skills",
+      "version": "0.1.0",
+      "strict": true,
+      "source": {
+        "source": "url",
+        "url": "https://github.com/WenyuChiou/agent-collab-skills.git",
+        "ref": "main"
+      }
+    }
+  ]
+}
