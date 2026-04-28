@@ -2,6 +2,8 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
+![Pipeline overview: agent-task-splitter → codex-delegate / gemini-delegate / claude-in-session → agent-output-reconciler → agent-acceptance-gate, with agent-shared-memory and agent-debate as cross-cutting chips](docs/pipeline-overview.png)
+
 > 5 Claude Code skills for multi-agent collaboration — task splitter,
 > output reconciler, adversarial debate, shared memory, acceptance
 > gate. Designed to compose with [`codex-delegate`](https://github.com/WenyuChiou/codex-delegate)
