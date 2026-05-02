@@ -24,7 +24,7 @@ session 記住決策、怎麼把好幾個 agent 的成果合併進主分支。
 
 ## 安裝
 
-前置：Claude Code（https://claude.ai/code/） 建議（非必要）已透過
+前置：Claude Code（https://claude.ai/code） 建議（非必要）已透過
 `ai-research-skills` 安裝 `codex-delegate` 與 `gemini-delegate`，並把
 對應的 CLI binary 放到 PATH 上。
 
