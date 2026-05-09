@@ -11,6 +11,8 @@
 > gate. Designed to compose with [`codex-delegate`](https://github.com/WenyuChiou/codex-delegate)
 > and [`gemini-delegate-skill`](https://github.com/WenyuChiou/gemini-delegate-skill).
 
+> 📚 Part of the [**agentic AI learning roadmap**](https://github.com/WenyuChiou/awesome-agentic-ai-zh) — a 7-stage curated path for building agentic AI, multilingual (zh-TW · zh-CN · English). Multi-agent orchestration is covered in Stage 7.
+
 A focused marketplace for the orchestration layer **above** delegation.
 Existing delegate skills solve "Claude → Codex / Gemini handoff." This
 catalog solves what comes next: how to split a goal across agents, how
