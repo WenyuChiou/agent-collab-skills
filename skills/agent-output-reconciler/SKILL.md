@@ -265,3 +265,13 @@ End with:
   primary input.
 - **Don't compute aggregate token cost** — that's the acceptance
   gate's job (it reads the same result.json files).
+
+
+## Commit Boundary
+
+Every agent boundary is a commit boundary (see global rule:
+~/.claude/CLAUDE.md → "Commit Discipline for Multi-Agent Work"). This
+makes multi-agent work auditable (commit log = agent log) and enables
+surgical rollback via `git revert <hash>` of just one agent's commit.
+
+**Specific to this skill**: the reconciler reads each agent's output as a separate commit. If agents share an uncommitted working tree, the reconciler cannot disentangle which change came from which agent. Always commit each agent's output before invoking the reconciler.

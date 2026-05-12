@@ -213,3 +213,13 @@ the full debate transcript and writes the synthesis at the bottom:
 - **Don't update `.coord/memory.yml` automatically.** The
   recommendation goes there only if the user accepts it. Use
   `agent-shared-memory` separately to log the decision.
+
+
+## Commit Boundary
+
+Every agent boundary is a commit boundary (see global rule:
+~/.claude/CLAUDE.md → "Commit Discipline for Multi-Agent Work"). This
+makes multi-agent work auditable (commit log = agent log) and enables
+surgical rollback via `git revert <hash>` of just one agent's commit.
+
+**Specific to this skill**: each round (Pro turn, Con turn, judge verdict) is a commit. The full debate is then a commit-by-commit replay. If Pro and Con both edit the same file in a round, the second commit appears as the contested diff that the judge resolves in the third commit.

@@ -414,3 +414,13 @@ earns its keep when:
   After all 3 external tasks finish:
     invoke agent-output-reconciler
 ```
+
+
+## Commit Boundary
+
+Every agent boundary is a commit boundary (see global rule:
+~/.claude/CLAUDE.md → "Commit Discipline for Multi-Agent Work"). This
+makes multi-agent work auditable (commit log = agent log) and enables
+surgical rollback via `git revert <hash>` of just one agent's commit.
+
+**Specific to this skill**: after the splitter writes `.coord/plan.yml` and per-agent `.ai/<agent>_task_<NNN>_<slug>.md` files, commit them as a single 'plan commit' before any agent begins execution. This gives every downstream agent's commit a clean parent to attribute work against.

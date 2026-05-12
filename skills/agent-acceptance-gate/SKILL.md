@@ -221,3 +221,13 @@ T1, T3, T4 are individually mergeable; only T2 is blocked.
 - **Don't run inside an agent's task.** This skill runs as a final
   step **after** all delegate tasks completed and the reconciler
   has been read. It's a Claude-in-session skill, not delegated.
+
+
+## Commit Boundary
+
+Every agent boundary is a commit boundary (see global rule:
+~/.claude/CLAUDE.md → "Commit Discipline for Multi-Agent Work"). This
+makes multi-agent work auditable (commit log = agent log) and enables
+surgical rollback via `git revert <hash>` of just one agent's commit.
+
+**Specific to this skill**: this gate IS the final pre-merge commit check. It reads the per-agent commits between the round's plan commit and HEAD, verifies they collectively satisfy `success_criteria`, and writes its PASS/FAIL verdict to `.coord/acceptance_<NNN>.md` as a final commit. Only after PASS does the round get merged to main.

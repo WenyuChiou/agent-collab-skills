@@ -222,3 +222,13 @@ Initialize:
   If Codex is running in `/repo-A` and Claude is in `/repo-B`,
   they have separate `.coord/memory.yml` files. This skill operates
   per-project.
+
+
+## Commit Boundary
+
+Every agent boundary is a commit boundary (see global rule:
+~/.claude/CLAUDE.md → "Commit Discipline for Multi-Agent Work"). This
+makes multi-agent work auditable (commit log = agent log) and enables
+surgical rollback via `git revert <hash>` of just one agent's commit.
+
+**Specific to this skill**: every promotion to `.coord/memory.yml` is its own commit with message `memory: <decision-summary>`. The acceptance-gate skill diffs memory commits to detect inconsistent decisions across agents.
