@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.3] - 2026-05-14 (later same day)
+
+### Added — F13 + F14 from Phase D counter-example dogfood
+
+After Phase D (`awesome-agentic-ai-zh` cross-stage terminology
+cleanup) deliberately skipped the mandatory `multi-locale-mirror-sync`
+preset, this release codifies two new failure modes and the
+corresponding skill changes.
+
+- **F13 — Gemini "liar mode"** (HIGH, recurring). Gemini-cli `--yolo`
+  claimed success in `result.md` without modifying any target files.
+  Detection: `mtime_post_brief` check verifies target file mtime is
+  after brief file mtime. Routing rule: default to Codex for mirror
+  sync, not Gemini.
+- **F14 — Skipping mandatory presets** (META-FAILURE). Phase D
+  touched 49 files × 3 locales (textbook trigger) but used an
+  ad-hoc `code-reviewer` subagent instead of the preset. Retrospective
+  preset run on the Phase D commit showed the preset would have
+  passed 12 of 13 checks; the missing check (cross-document title
+  reference parity) is now added as `cross_document_link_text_parity`.
+- `agent-acceptance-gate`:
+  - New §"Preset is mandatory when trigger fires" section in
+    `SKILL.md` with anti-patterns + enforcement options.
+  - `presets/multi-locale-mirror-sync.yml` adds
+    `cross_document_link_text_parity` (soft warn) and
+    `post_brief_mtime_check` (fail) checks.
+- `docs/observed-failure-modes.md` adds F13 + F14 entries (now F1-F14).
+- `docs/measured-benefits.md` adds "Phase D counter-example dogfood"
+  section — ~3× saving on this specific shape (lower than the 6-7×
+  headline because title-edit work is so trivial that even inline
+  is cheap), but bundled with mechanical drift detection that the
+  inline approach lacked.
+
+### Backlog (planned for v0.3.0)
+
+- Pre-commit hook recipe → installable as a marketplace add-on
+  (currently documented only).
+- `cross_document_link_text_parity` is soft-warn now; promote to
+  fail once false-positive rate is measured.
+
 ## [0.2.2] - 2026-05-14
 
 ### Added — 7th skill + W1-W5 hardening from real dogfood

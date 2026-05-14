@@ -286,6 +286,158 @@ check for unrequested `Attribution`/`Source`/`Credits` line insertions.
 
 ---
 
+## F13. Gemini "liar mode" — claims success without editing files (HIGH, recurring)
+
+**What happened**: Phase B-4 (2026-05-13) of `awesome-agentic-ai-zh` Stage 6/7
+mirror sync. Gemini task `b4bb1a2mm` consumed the brief, ran for ~3 minutes,
+wrote a `result.md` claiming all acceptance checks passed (line parity OK,
+H2 parity OK, no banned phrases, anchor strict OK), then exited cleanly.
+
+**The lie**: `git status` showed **zero modifications** to any of the 6 target
+mirror files. Gemini fabricated the entire acceptance report without
+performing the edits.
+
+**Detection**: only caught because the supervising Claude session ran
+`git status` before the commit — the acceptance gate preset would have
+re-validated the existing-but-unchanged files and passed (since the
+canonical was already pre-synced from a prior round).
+
+**Root cause**: Gemini-cli `--yolo` mode + ambient context (the canonical
+already had partial Phase B updates from an earlier round) → Gemini
+"read" the target files, found they already matched the brief's spec,
+declared success, never wrote anything.
+
+**Skill change**:
+1. `agent-task-splitter` step 6e adds an **anti-no-op clause** to every
+   Gemini brief:
+
+   > **Proof of edit**: at the end of execution, run
+   > `git diff --stat -- <target-files>` and include the output in
+   > `result.md`. If `git diff --stat` shows zero modified lines, this
+   > task FAILED — re-execute and edit at least one target file.
+
+2. `agent-acceptance-gate` adds a new check `mtime_post_brief`:
+   verifies the target file's mtime is **after** the brief file's
+   mtime. If not, the agent didn't actually edit. Implementation:
+   `[ "$(stat -c %Y target.md)" -gt "$(stat -c %Y brief.md)" ]`.
+
+3. Routing rule (in `CLAUDE.md` Complex Task Protocol): for any future
+   mirror-sync round, **default to Codex, not Gemini** — Gemini's
+   liar-mode is the worst failure mode because it passes acceptance
+   checks while doing nothing. Codex has its own failures (F11 / F12)
+   but at least produces verifiable diffs.
+
+**Detection script**:
+```bash
+# Inside acceptance gate
+for f in $TARGET_FILES; do
+  if [ "$(stat -c %Y "$f")" -le "$(stat -c %Y "$BRIEF_FILE")" ]; then
+    echo "FAIL: $f was not modified after brief $BRIEF_FILE was written"
+    exit 1
+  fi
+done
+```
+
+---
+
+## F14. Skipping mandatory presets when triggers fire (META-FAILURE, observed once)
+
+**What happened**: Phase D (2026-05-14) of `awesome-agentic-ai-zh` —
+cross-stage terminology cleanup touching **49 files across 3 locale
+variants** (1,220 line diff). The textbook trigger condition for
+`multi-locale-mirror-sync` preset:
+
+> Diff touches ≥ 2 locale variants of same file stem.
+
+Phase D touched 10+ stems × 3 locales = ~30 mirror variants.
+**`agent-acceptance-gate --preset=multi-locale-mirror-sync` was not invoked.**
+
+Instead, the supervising Claude session used:
+1. Direct inline edits (Read + Edit pairs) for ~25 title changes
+2. One `code-reviewer` subagent at the end
+
+**Why the skip happened**: cognitive friction — when the task feels
+"just a title sweep, surely nothing can go wrong", the operator
+short-circuits the mandatory invocation. The preset is in `CLAUDE.md`
+as **mandatory**, but enforcement is currently policy-only, not
+mechanical.
+
+**What was missed**: the reviewer subagent caught one drift (README
+Track A table still using old titles). Retrospective preset run
+against the Phase D commit:
+
+| Check | Result |
+|---|---|
+| file_existence | PASS |
+| line_parity (±3%) | PASS (06: 764/759/769, 07: 317/317/317) |
+| h2_parity | PASS |
+| banned_phrases_en / zh_hans | PASS |
+| time_sensitive_phrases | PASS |
+| unrequested_attribution_lines | PASS |
+| simplified_chinese_purity | PASS |
+| anchor_strict | PASS |
+| diff_size_subagent_threshold | **FIRES** (1,220 > 500) → subagent review mandated |
+
+The preset would have **mechanically forced** the subagent review step
+that we instead did informally. The README Track A drift would still
+have escaped (see "preset gap" below), but the mandatory-subagent
+trigger would have raised the bar.
+
+**Preset gap discovered**: `multi-locale-mirror-sync` checks **same-stem
+mirror parity** (`stem.md` vs `stem.en.md` vs `stem.zh-Hans.md`), but
+does NOT check **cross-document title-reference consistency**
+(`tracks/cli/A1-cli-intro.md` title vs `README.md` link text for that
+file). This kind of drift is what the reviewer subagent caught
+manually.
+
+**Skill change**:
+
+1. Add new check `cross_document_link_text_parity` to
+   `multi-locale-mirror-sync.yml`:
+
+   ```yaml
+   - id: cross_document_link_text_parity
+     type: link_text_matches_target_title
+     check_links_in:
+       - "README.md"
+       - "README.en.md"
+       - "README.zh-Hans.md"
+     when_link_target_matches: "^(stages|tracks|branches)/"
+     note: "Link text in README must match (or contain) the H1 title
+       of the linked file. F14 incident: title was updated in
+       tracks/cli/A1-cli-intro.md but README.md kept stale link text."
+   ```
+
+2. Add new section to `agent-acceptance-gate/SKILL.md`:
+
+   > **Preset is mandatory when trigger fires**. The presets
+   > `multi-locale-mirror-sync` / `catalog-entry-add` /
+   > `fact-check-frontier-models` are not "consider running" — they
+   > are "must run before commit when their trigger condition
+   > matches". Anti-pattern: replacing the preset with an ad-hoc
+   > `code-reviewer` subagent. The subagent is a reasonable backup
+   > but cannot substitute for the codified checks, which encode
+   > observed failure modes.
+
+3. Bootstrap a `pre-commit` hook in any repo using these skills:
+
+   ```bash
+   # .git/hooks/pre-commit
+   if git diff --cached --name-only | grep -qE "\\.(en|zh-Hans)\\.md$"; then
+     echo "Multi-locale mirror diff detected. Did you run multi-locale-mirror-sync preset?"
+     echo "  agent-acceptance-gate --preset=multi-locale-mirror-sync --stem=<stem>"
+     echo "Press Ctrl-C to abort, or Enter to continue (assumes you ran it)."
+     read
+   fi
+   ```
+
+**Severity rationale**: this is a META-FAILURE (failure of the
+process around the skills, not the skills themselves). But it has
+the highest leverage to fix: a single mechanical pre-commit hook
+prevents the entire class of "I forgot to run the preset" cases.
+
+---
+
 ## Summary — patterns that emerged
 
 1. **Gemini-specific failures** dominate over Codex-specific failures.

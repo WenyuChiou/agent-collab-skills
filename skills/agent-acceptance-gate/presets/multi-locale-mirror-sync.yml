@@ -190,6 +190,41 @@ checks:
     when_exceeded: recommend_subagent_review
     note: "F8 incident: large multi-file diffs blow up main session context. ≥500 lines = mandate agent-acceptance-gate subagent pattern."
 
+  - id: cross_document_link_text_parity
+    type: link_text_matches_target_title
+    severity: warn
+    check_links_in:
+      - "README.md"
+      - "README.en.md"
+      - "README.zh-Hans.md"
+    when_link_target_matches: "^(stages|tracks|branches)/.*\\.md$"
+    require: "link_text_contains_target_h1_or_first_8_chars"
+    note: |
+      F14 incident: title was updated in tracks/cli/A1-cli-intro.md
+      from `A1 — CLI Agent 入門 + 選擇` to `A1 — 選一個 CLI Agent，開始用它做事
+      （CLI Agent Intro & Selection）`, but README.md kept the stale
+      link text `[CLI Agent 入門 + 選擇](tracks/cli/A1-cli-intro.md)`.
+      Same-stem mirror parity (the other checks above) does NOT catch
+      this cross-document drift. This check verifies every README link
+      target's H1 title intersects the README link text by ≥ 8 chars
+      or contains it verbatim. Soft severity (warn) because some
+      links intentionally use shorter aliases.
+
+  - id: post_brief_mtime_check
+    type: file_mtime_after
+    severity: fail
+    reference_file_param: brief_file
+    files:
+      - "{stem}.md"
+      - "{stem}.en.md"
+      - "{stem}.zh-Hans.md"
+    note: |
+      F13 incident: Gemini "liar mode" — claimed success without
+      actually editing files. This check verifies every target file
+      was modified AFTER the brief file was written. If brief mtime
+      ≥ target mtime, the delegate didn't actually edit. Skipped if
+      brief_file param not provided (manual / inline edits).
+
 failure_action: |
   Multi-locale mirror sync acceptance failed. Common causes:
   - Gemini dropped sections (line_parity or h2_parity FAIL)

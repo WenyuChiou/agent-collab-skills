@@ -136,6 +136,80 @@ Every multi-locale sync now follows the same acceptance pattern. No
 forgetting checks, no "did I grep for banned phrases this time".
 Memory aid + standard process in one.
 
+## Phase D dogfood (2026-05-14, Counter-Example: skipping mandatory preset)
+
+A 2nd production session (after the 6-round Phase B above) deliberately
+**did not** invoke the skills, to measure what gets lost. Honest report.
+
+**The work**: cross-stage terminology cleanup on `awesome-agentic-ai-zh` —
+49 files × 3 locale variants × 1,220 line diff. Textbook trigger for
+`multi-locale-mirror-sync` preset. The supervising Claude session
+**skipped the mandatory invocation** and used direct inline Edit calls
+plus one `code-reviewer` subagent at the end.
+
+### What the inline approach cost
+
+| Step | Tokens (estimated proxy) | Notes |
+|---|---|---|
+| Read 30+ files to inspect | ~25k | Each title line check = 1 read + 1 edit |
+| Apply 25 title edits inline | ~10k | 25 Edit calls × ~400 tokens each |
+| Final code-reviewer subagent | ~12k | Comprehensive 5-category review |
+| Drift fix (README Track A) | ~3k | Reviewer caught it, supervising session patched |
+| **Total main-session** | **~50k** | |
+
+### What `agent-task-splitter` + Codex delegate would have cost
+
+| Step | Tokens (estimated proxy) | Notes |
+|---|---|---|
+| Splitter writes 1 plan + 1 Codex brief | ~6k | Reusable, version-controlled |
+| Codex executes all 25 title edits | **0 (off main session)** | Codex reads + writes outside |
+| `multi-locale-mirror-sync` preset verification | ~8k | Subagent runs structured checks |
+| Supervising session reads PASS/FAIL | ~2k | Structured report only |
+| **Total main-session** | **~16k** | |
+
+**Ratio: ~3× saving** — smaller than R2/R4 (which were 7× / 17-22×)
+because most title-edit work is so trivial that even inline is cheap.
+But the **3× saving comes bundled with mechanical drift detection**
+that the inline approach lacked entirely.
+
+### The drift that was missed (and how it would have been caught)
+
+Inline approach + reviewer-subagent caught the **README Track A title
+drift** post-commit. Retrospective `multi-locale-mirror-sync` preset
+run against the Phase D commit:
+
+| Check | Result | Cost equivalent |
+|---|---|---|
+| file_existence + line_parity + h2_parity | PASS | 5 sec, ~1k tokens |
+| banned_phrases + simplified purity | PASS | 5 sec, ~1k tokens |
+| anchor_strict | PASS | 1 sec |
+| diff_size_subagent_threshold (>500) | **FIRES** | mandates subagent review |
+| cross_document_link_text_parity (proposed v0.2.3) | **WOULD FIRE** | would have caught README drift |
+
+The first 12 checks passed automatically. Check #13 mandates the same
+subagent review that the inline approach added ad-hoc. The proposed
+check #14 (added to v0.2.3 backlog from this dogfood) closes the gap
+that the human reviewer had to catch manually.
+
+### F14 lesson — process beats spec when skill compliance is policy-only
+
+The preset is documented as **mandatory** in `CLAUDE.md`. Phase D
+operator skipped it anyway because the task "felt simple". This is a
+META-FAILURE: the skills work, the documentation says use them, the
+operator didn't.
+
+Two fixes shipped from this dogfood:
+
+1. New section "Preset is mandatory when trigger fires" added to
+   `agent-acceptance-gate/SKILL.md`
+2. Pre-commit hook recipe added — mechanical check that mirror-diff
+   commits prompt for preset invocation
+
+The pre-commit hook is the actual fix. Documentation alone didn't
+hold. See F14 in `observed-failure-modes.md`.
+
+---
+
 ## What v0.2.1 still doesn't do (planned for v0.2.2)
 
 Based on this session's dogfood:

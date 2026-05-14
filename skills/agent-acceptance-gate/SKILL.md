@@ -80,6 +80,46 @@ don't specify):
   lines of a benchmark %) → `fact-check-frontier-models` MUST be
   invoked.
 
+### Preset is mandatory when trigger fires (F14, 2026-05-14)
+
+The presets above are not "consider running" — they are **must run
+before commit** when their trigger condition matches. The F14
+incident (`docs/observed-failure-modes.md`) is the cautionary tale:
+a Phase D run on `awesome-agentic-ai-zh` touched 49 files across 3
+locale variants (textbook `multi-locale-mirror-sync` trigger),
+skipped the preset, used a `code-reviewer` subagent instead, and
+shipped a drift the preset's `cross_document_link_text_parity` check
+was designed to catch.
+
+**Why skipping is tempting**: when the work feels "just a title
+sweep, surely nothing can go wrong", the operator short-circuits the
+mandatory invocation. The presets exist precisely because that
+intuition is wrong — drift hides in the "obvious" cases.
+
+**Anti-patterns**:
+
+1. **Replacing the preset with an ad-hoc `code-reviewer` subagent**.
+   The subagent is a reasonable backup but cannot substitute for
+   the codified checks, which encode observed failure modes. Run
+   both, not one-instead-of-the-other.
+2. **"I'll run the preset later"**. The preset's diff-size check is
+   tied to the commit-staged diff; later means re-staging or
+   running against history. Just run it before commit.
+3. **Manually grep'ing for the same patterns the preset already
+   knows**. You'll miss one. The preset won't.
+
+**Enforcement options** (in increasing strength):
+
+- **Documentation** (current): this section + `CLAUDE.md` rule.
+  Held in 5 of 6 Phase B rounds, failed in Phase D.
+- **Pre-commit hook** (recommended): mechanical check that any
+  mirror-diff commit prompts for preset invocation. Recipe in
+  `docs/observed-failure-modes.md` F14.
+- **Block on missing preset run** (strict): pre-commit hook fails
+  unless a `.coord/acceptance_<NNN>.md` file exists in the commit.
+  Use this in repos where the cost of drift is high (curriculum,
+  public docs, anything user-facing).
+
 ## Workflow
 
 ### 1. Identify round
