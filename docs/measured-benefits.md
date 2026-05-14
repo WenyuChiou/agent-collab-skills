@@ -1,19 +1,17 @@
 # Measured Benefits — what `agent-collab-skills` actually saves
 
 > Honest dogfood report based on 1 production session (2026-05-14,
-> awesome-agentic-ai-zh plain-language refactor, 5 rounds × 9 tasks).
-> No napkin math — actual token-byte measurement per round.
+> awesome-agentic-ai-zh plain-language refactor, **6 rounds × 9 tasks**).
+> Main-session token counts are real byte-proxy measurements;
+> control-token column is a constructed baseline estimate (see methodology).
 
 ## TL;DR
 
-**Realistic saving: ~7-8× on main-session token cost** when the round
-involves delegation. **0× savings** on pure-judgment work that has to
-stay inline. **Non-quantifiable but critical**: drift catch + spec-
-codified verification stops broken code from shipping.
+**Realistic saving: ~6-7× on main-session token cost** across a 6-round mixed-workload session. **~1× saving** on pure-judgment rounds (skills don't help there). **Up to 17-22×** on the sweet-spot round (multi-file mirror sync via Gemini delegate). **Drift catch** (F11/F12 incidents) is the non-quantifiable bonus on top — the review step that catches drift IS already paid for in the main-session token cost, so it's not "free", it's "the right use of the budget".
 
 If you're evaluating whether to install this bundle, the calculus is:
 
-- **You write Chinese curriculum / docs across multiple locales** → install (R4 sweet spot, 13-16× saving)
+- **You write Chinese curriculum / docs across multiple locales** → install (R4 = mirror sync round, peak 17-22× saving)
 - **You delegate to Codex / Gemini regularly and review their output** → install (R2 sweet spot, F11/F12 drift catch alone justifies it)
 - **You only work solo on small judgment-heavy tasks** → don't bother (R1/R3 = no saving)
 
@@ -22,21 +20,25 @@ If you're evaluating whether to install this bundle, the calculus is:
 ## Measurement methodology
 
 - Token proxy: file bytes / 3 chars per token (mixed zh-TW + EN)
-- "Main session tokens" = bytes read into Claude's main context window
-- "Control tokens" = hypothetical estimate if Claude did everything inline (no delegate)
+- **"Main session tokens"** = bytes read into Claude's main context window — **measured** from actual file sizes touched
+- **"Control tokens"** = hypothetical estimate of cost if Claude did everything inline (no delegate) — **estimated**, not measured, because we didn't run the control condition
 - Subagent / Codex / Gemini token consumption is **separate** — not in main session count
-- All numbers below are real, not estimated
+- The headline "~7-8× saving" derives from main (measured) ÷ control (estimated). Treat as a directional figure, not a precise multiplier.
 
-## Round-by-round breakdown
+## Round-by-round breakdown (6 rounds)
 
 | Round | Task type | Main tokens | Control tokens | Saving | What the skill bought |
 |---|---|---|---|---|---|
 | R1 | Term definitions (Claude inline, no delegate) | ~6.5k | ~6.5k | **1×** | Nothing — pure Claude work. Skills had no role to play. |
 | R2 | Mechanical sweeps + jargon glosses (Codex × 2 parallel) | ~5k | ~37k | **~7×** | Codex read 80 KB of stages NOT in main session; main only read 12 KB of diff for review. **Also caught 4 drift files** (F11/F12) that would have shipped broken. |
-| R3 | Pedagogical rewrites (Claude inline) | ~3k | ~15-20k | **~5×** | Audit-led approach: prior audit's specific findings let Claude do surgical rewrites instead of re-reading + diagnosing. Skills had partial role. |
-| R4 + R5 | Mirror sync (Gemini) + acceptance gate (subagent) | ~6k | ~80-100k | **~13-16×** | Gemini did 200 KB read + 50 KB write entirely outside main session. Subagent acceptance gate returned 600w verdict instead of main session running 5+ grep commands. **Sweet spot of the bundle.** |
-| R6 | GitHub triage (gh CLI direct) | ~0.5k | ~0.5k | **1×** | Single command via gh CLI — skills not relevant here. |
-| **TOTAL** | (5 rounds) | **~21k** | **~140-165k** | **~7-8×** | |
+| R3 | Pedagogical rewrites (Claude inline, no delegate) | ~3k | ~6k | **~1× (effectively 0 skill contribution)** | Pure Claude work — skills had no direct role. The lower control estimate vs naive baseline came from carrying over prior audit findings; that's discipline value, not skill value. |
+| R4 | Mirror sync (Gemini delegate, 8 files) | ~4k | ~70-90k | **~17-22×** | Gemini did 200 KB read + 50 KB write entirely outside main session; main only read its ≤ 250-word `result.md` summary. **This is the bundle's sweet spot.** |
+| R5 | Acceptance gate (subagent verdict) | ~2k | ~10k | **~5×** | Subagent ran 5+ grep checks + verdict synthesis; main only read 600-word structured PASS/FAIL report instead of running shell verification inline. |
+| R6 | GitHub triage (gh CLI direct, no delegate) | ~0.5k | ~0.5k | **1×** | Single command via gh CLI — skills not relevant here. |
+| **TOTAL** | (6 rounds combined) | **~21k** | **~130-150k** | **~6-7×** | |
+
+(Earlier "~7-8×" headline rounded high; correct band is ~6-7× once R3
+is properly attributed as skill-neutral.)
 
 ## Where the savings really come from
 
@@ -86,8 +88,11 @@ Be honest with yourself:
 - Making architectural decisions
 
 These are inline Claude work. Skills can't delegate them — the value
-is in Claude's judgment, not throughput. **You'll see 0× saving** on
-these rounds. That's fine — that's not what the skills are for.
+is in Claude's judgment, not throughput. **You'll see ~1× saving** on
+these rounds (skills had no role). That's fine — that's not what the
+skills are for. (R1 and R3 above are both effectively 1×; R3's table
+row shows a tiny carryover-audit benefit but that's discipline, not
+delegation.)
 
 ### Single-file fixes
 
@@ -104,7 +109,7 @@ during ideation.
 
 ## Non-quantifiable but high-value benefits
 
-These don't show up in token counts but matter a lot:
+These don't show up directly as additional token-cost saving — but they're the strongest reason to use the bundle:
 
 ### Drift catch (F1-F12)
 
@@ -112,9 +117,7 @@ This session caught 12 distinct agent failure modes:
 - F1-F10 captured in `docs/observed-failure-modes.md` from prior sessions
 - F11 (over-applied meta-doc sweep) + F12 (unrequested attributions) discovered THIS session and will be codified into v0.2.2
 
-Each F# is a real bug that would have shipped without the
-review-and-reject pattern. **Even at 0× token saving, this would
-justify the bundle.**
+Each F# is a real bug that would have shipped without the review-and-reject pattern. **The review-step token cost is already baked into the main-session number** (e.g., R2's ~5k tokens include the review pass that caught the 4 drift files). So drift catch isn't "free on top" — it's "the highest-leverage use of the same token budget you'd spend anyway". Even at 1× token saving, the review pattern alone would justify the bundle for any team that delegates to Codex/Gemini regularly.
 
 ### Spec-as-code (preset YAMLs)
 
@@ -164,12 +167,12 @@ If you're doing curriculum / docs / catalog work, you'll likely see
 single-agent code work, you may see 1× — and that's the bundle telling
 you it's the wrong tool.
 
-## TL;DR (again)
+## Bottom line (no marketing)
 
-- **~7-8× average token saving** when the round has real delegation work
-- **13-16× peak savings** on mirror sync rounds (Gemini delegate)
-- **0× on pure judgment** rounds — don't pretend it'll help there
-- **Drift catch (F11/F12 etc.) is the non-quantifiable winner** — it stops real bugs from shipping
+- **~6-7× average token saving** across a mixed 6-round workload (not 30× from earlier napkin math)
+- **17-22× peak** on the mirror-sync round (Gemini delegate, biggest individual win)
+- **~1× on pure judgment** rounds — don't pretend it'll help there
+- **Drift catch is the highest-leverage use of the token budget you'd spend anyway** — review-step cost is included, not extra
 
 The bundle isn't magic. It's discipline + spec + scaffolding around
 existing tools (codex-delegate, gemini-delegate, Claude subagents).

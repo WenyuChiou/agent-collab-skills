@@ -26,34 +26,36 @@ Sister marketplace: [`ai-research-skills`](https://github.com/WenyuChiou/ai-rese
 
 ## ⏱ Measured benefits (from real dogfooding, not napkin math)
 
-One production session — 5-round plain-language refactor on
+One production session — 6-round plain-language refactor on
 [`awesome-agentic-ai-zh`](https://github.com/WenyuChiou/awesome-agentic-ai-zh)
-(2026-05-14, 9 tasks across 5 rounds, all measured):
+(2026-05-14, 9 tasks across 6 rounds). Main-session token counts are
+real byte-proxy measurements; control column is a constructed baseline
+estimate (see [methodology](docs/measured-benefits.md#measurement-methodology)).
 
-| Round | Task type | Main-session tokens | Without skills (inline) | Saving |
+| Round | Task type | Main tokens (measured) | Control estimate | Saving |
 |---|---|---|---|---|
-| R1 | Term definitions (Claude judgment) | ~6.5k | ~6.5k | **1×** (no help) |
-| R2 | Mechanical sweeps (Codex × 2 parallel) | ~5k | ~37k | **~7×** |
-| R3 | Pedagogical rewrites (Claude judgment) | ~3k | ~15-20k | **~5×** |
-| **R4 + R5** | **Mirror sync (Gemini) + acceptance gate (subagent)** | **~6k** | **~80-100k** | **~13-16×** ⭐ |
+| R1 | Term definitions (Claude inline judgment) | ~6.5k | ~6.5k | **1×** (skill had no role) |
+| R2 | Mechanical sweeps (Codex × 2 parallel) | ~5k | ~37k | **~7×** + drift catch |
+| R3 | Pedagogical rewrites (Claude inline judgment) | ~3k | ~6k | **~1×** (skill-neutral) |
+| **R4** | **Mirror sync (Gemini delegate, 8 files)** | **~4k** | **~70-90k** | **~17-22×** ⭐ |
+| R5 | Acceptance gate (subagent verdict) | ~2k | ~10k | **~5×** |
 | R6 | GitHub triage (gh CLI direct) | ~0.5k | ~0.5k | **1×** (skill not relevant) |
-| **TOTAL** | | **~21k** | **~140-165k** | **~7-8× average** |
+| **TOTAL** | | **~21k** | **~130-150k** | **~6-7× average** |
 
 **Plus 2 drift incidents caught** (F11 over-applied meta-doc sweep,
-F12 unrequested attribution injection) that would have shipped broken
-without the reviewer-rejection pattern. **Non-quantifiable but
-critical**.
+F12 unrequested attribution injection) — the review-step token cost
+is **already included** in the main-session number above, so this is
+"the highest-leverage use of the same budget", not free bonus value.
 
 **Where the savings come from**:
-- Multi-locale mirror sync (Gemini delegate): peak 13-16× saving
-- Codex parallel mechanical sweeps: 7× saving + drift catch
-- Subagent acceptance gate: replaces hand-rolled `grep` × N with structured verdict
-- **Spec-as-code presets** (multi-locale-mirror-sync / catalog-entry-add /
-  fact-check-frontier-models) — eliminate hand-rolling verification
+- **Multi-locale mirror sync** (R4, Gemini delegate): peak 17-22× — delegate reads + writes 250 KB outside main session, main only consumes ≤250-word `result.md`
+- **Codex parallel sweeps** (R2): 7× + 4 drift files caught & rejected via reviewer pattern
+- **Subagent acceptance gate** (R5): replaces hand-rolled `grep × N` with structured verdict (~5× saving)
+- **Spec-as-code presets** (`multi-locale-mirror-sync.yml` / `catalog-entry-add.yml` / `fact-check-frontier-models.yml`) — codified checks eliminate ad-hoc shell verification
 
-**Where the skills do NOT help** (honest):
-- Pure judgment work (rewriting prose for clarity, architectural decisions)
-- Single-file fixes
+**Where the skills do NOT help** (be honest with yourself):
+- Pure judgment work (rewriting prose, architectural decisions) — R1, R3 in our session
+- Single-file fixes — use Edit tool directly
 - Real-time exploration / ideation rounds
 
 **Full report**: [`docs/measured-benefits.md`](docs/measured-benefits.md)
