@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.1] - 2026-05-13
+
+### Added — guardrails distilled from real dogfooding incidents
+
+After v0.2.0 ship, did a retrospective on the actual failures
+encountered during Codex + Gemini work on `awesome-agentic-ai-zh`
+Stage 6 (2026-05-13). 10 distinct failure modes captured:
+
+- `docs/observed-failure-modes.md` — F1–F10 catalog, ground truth
+  for "why does the skill say that thing?"
+- `skills/agent-acceptance-gate/presets/multi-locale-mirror-sync.yml`
+  — codifies the 5+ checks needed after zh-TW → en + zh-Hans sync.
+- `skills/agent-acceptance-gate/presets/catalog-entry-add.yml` —
+  live-API verification for `gh api` star count + license claims.
+- `skills/agent-acceptance-gate/presets/fact-check-frontier-models.yml`
+  — deny-list of fabricated model names + benchmark citation pair
+  enforcement. Pre-empts the DeepSeek-R2 hallucination chain (F4).
+
+### Changed — skill prompts hardened from incident learnings
+
+- `agent-task-splitter`:
+  - Gemini stdin invocation (`cat task.md | gemini --yolo -p`) is
+    now the DEFAULT pattern, not a sidebar workaround. (F1)
+  - New step 6d "Task-shape guidance" classifies pedagogical /
+    reference / catalog / migration / translation tasks and gives
+    format guidance per shape — prevents F6 over-tabularization.
+  - New step 6e "Fact-verification step" mandates `gh api` or
+    primary-source URL for any external claim. (F4, F5)
+  - Task-brief template adds "Self-review checklist" (slug verbatim,
+    column counts unchanged, no time-relative phrases). (F2, F3, F7)
+  - Task-brief template adds "Banned phrasing" section listing
+    time-relative idioms with replacements.
+
+- `agent-output-reconciler`:
+  - New §2.4 "Multi-locale lockstep check" — line/H2/column-count
+    parity across locale variants. (F2, F8)
+
+- `agent-acceptance-gate`:
+  - New "Presets" section documents the 3 preset YAMLs + their
+    mandatory invocation triggers.
+
+### Tests
+
+- 3 new tests covering observed-failure-modes doc + preset YAMLs
+  + SKILL.md cross-references.
+- `python -m pytest`: **13 passed, 0 warnings** (was 10).
+
 ## [0.2.0] - 2026-05-13
 ### Added
 - `agent-context-budget` skill for bounded multi-agent handoffs,

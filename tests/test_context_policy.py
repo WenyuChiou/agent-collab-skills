@@ -75,3 +75,80 @@ def test_context_docs_and_agentmemory_docs_exist():
     agentmemory_text = agentmemory.read_text(encoding="utf-8")
     assert ".coord/memory.yml is canonical" in agentmemory_text
     assert "optional" in agentmemory_text.lower()
+
+
+def test_observed_failure_modes_doc_exists_and_covers_real_incidents():
+    """The observed-failure-modes doc must capture every failure
+    category that the skills now defend against. If a new failure
+    is added to the skills without being documented here, that's a
+    knowledge-loss risk for future maintainers.
+    """
+    failure_modes = ROOT / "docs" / "observed-failure-modes.md"
+    assert failure_modes.exists(), (
+        "docs/observed-failure-modes.md must exist — it's the ground "
+        "truth for why each skill guardrail exists."
+    )
+
+    text = failure_modes.read_text(encoding="utf-8")
+    # Each failure mode codified in the skills must have an F-number
+    # entry in this doc.
+    required_failure_ids = [
+        "F1",  # Gemini gitignore
+        "F2",  # Gemini drops table structure
+        "F3",  # Time-sensitive language drift
+        "F4",  # Frontier-model fabrication
+        "F5",  # Star count drift
+        "F6",  # Codex over-tabularization
+        "F7",  # Slug drift
+        "F8",  # Large diff context bloat
+        "F9",  # Cascading review rounds
+        "F10",  # Stale ScheduleWakeup
+    ]
+    for fid in required_failure_ids:
+        assert f"## {fid}." in text, (
+            f"Failure mode {fid} not documented in observed-failure-modes.md"
+        )
+
+
+def test_acceptance_gate_presets_present_and_well_formed():
+    """The 3 presets must exist as YAML files under
+    skills/agent-acceptance-gate/presets/ and parse cleanly.
+    """
+    import yaml  # PyYAML; if missing, test will fail with ImportError
+    # which is the right signal — the bundle assumes PyYAML.
+
+    presets_dir = ROOT / "skills" / "agent-acceptance-gate" / "presets"
+    assert presets_dir.exists(), "presets/ directory must exist"
+
+    required_presets = [
+        "multi-locale-mirror-sync.yml",
+        "catalog-entry-add.yml",
+        "fact-check-frontier-models.yml",
+    ]
+    for name in required_presets:
+        path = presets_dir / name
+        assert path.exists(), f"Required preset missing: {name}"
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        # Each preset has the canonical schema
+        assert "preset_name" in data, f"{name}: missing preset_name"
+        assert "description" in data, f"{name}: missing description"
+        assert "checks" in data, f"{name}: missing checks"
+        assert isinstance(data["checks"], list) and len(data["checks"]) > 0, (
+            f"{name}: checks must be non-empty list"
+        )
+
+
+def test_acceptance_gate_skill_documents_presets():
+    """The acceptance-gate SKILL.md must mention each preset by name
+    so users can discover them.
+    """
+    skill = ROOT / "skills" / "agent-acceptance-gate" / "SKILL.md"
+    text = skill.read_text(encoding="utf-8")
+    for preset_name in [
+        "multi-locale-mirror-sync",
+        "catalog-entry-add",
+        "fact-check-frontier-models",
+    ]:
+        assert preset_name in text, (
+            f"acceptance-gate SKILL.md must reference preset '{preset_name}'"
+        )

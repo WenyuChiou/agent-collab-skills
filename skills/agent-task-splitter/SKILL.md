@@ -303,26 +303,51 @@ codex:
   .ai/gemini_result_<NNN>_<slug>.md
 - Summary limit: <= 250 words. Include findings, files inspected,
   risks, and blockers. Do not paste raw logs.
+- Self-review checklist (REQUIRED, see docs/observed-failure-modes.md F9):
+  Before declaring done, agent must explicitly verify:
+  1. Slugs in output files match `plan.yml` slug VERBATIM (F7)
+  2. Table column counts are unchanged for any table the task touched (F2)
+  3. No time-relative phrases ("today", "this week", "soon") in output (F3)
 - Claude will perform a final review (terminology, factual accuracy,
   schema adherence) before merging.
+
+## Banned phrasing (output-language-agnostic, applies in all locales)
+- Time-relative: "today", "this week", "yesterday", "soon",
+  "recently", "now" — replace with absolute year or "actively
+  maintained" / specific date.
+- Vague popularity: "popular", "widely used" — replace with star
+  count + date or specific user count.
+- Unverified status: "production-ready", "battle-tested" — only if
+  primary source confirms.
 ```
 
-> **Critical (Gemini-specific)**: gemini-cli **refuses to read
-> gitignored files by default**. Since `.ai/` is conventionally
-> gitignored to keep transient task files out of commits, this means
+> **Critical (Gemini-specific, F1 in `docs/observed-failure-modes.md`)**:
+> gemini-cli **refuses to read gitignored files by default**. Since
+> `.ai/` is conventionally gitignored to keep transient task files
+> out of commits, this means
 > `gemini -p "Read .ai/gemini_task_<NNN>_<slug>.md and execute"`
-> WILL FAIL with "file ignored by configured ignore patterns."
+> **WILL FAIL** with `"File path '.ai/...' is ignored by configured
+> ignore patterns."` — this is the single most common Gemini failure
+> mode observed in dogfooding.
 >
-> Workaround: invoke gemini with the task content **inlined into
-> the prompt**, and **close stdin** with `< /dev/null` so gemini
-> doesn't wait for input that won't come:
+> **Default invocation pattern** (use this, not the `gemini -p "Read .ai/..."`
+> pattern):
 >
 > ```bash
-> # Cap stdout at 10 MB to prevent runaway logs (same incident as codex).
-> TASK=$(cat .ai/gemini_task_<NNN>_<slug>.md)
-> gemini -p "$TASK" --yolo \
->   < /dev/null 2>&1 | head -c 10485760 > .ai/gemini_log_<NNN>_<slug>.txt
+> # Pipe task content via stdin to bypass gitignore restriction.
+> # Cap stdout at 10 MB to prevent runaway logs (incident pattern from
+> # global CLAUDE.md).
+> cat .ai/gemini_task_<NNN>_<slug>.md | gemini --yolo -p \
+>   "Below is your full task brief via stdin. Execute it. Report
+>    PASS/FAIL of the acceptance checks at end. Don't ask questions,
+>    just do it." \
+>   2>&1 | head -c 10485760 > .ai/gemini_log_<NNN>_<slug>.txt
 > ```
+>
+> Avoid the older "inline TASK=$(cat)" pattern — it's longer and
+> the `cat | gemini --yolo -p ...` pipe is what actually got tested
+> on 2026-05-13. The `< /dev/null` redirect is not needed when stdin
+> is piped (the pipe satisfies stdin closure).
 >
 > When you produce the gemini task file, also produce a sibling
 > shell snippet `.ai/gemini_run_<NNN>_<slug>.sh` with the inlined
@@ -336,6 +361,48 @@ codex:
 
 **Don't write a task file.** Claude executes inline in the current
 conversation. The plan.yml entry serves as the spec.
+
+### 6d. Task-shape guidance (prevents F6 over-tabularization)
+
+Before writing the task body, classify the task by **output shape**:
+
+| Task shape | Format guidance to include in brief |
+|---|---|
+| **Pedagogical** (curriculum, tutorial, explainer) | "Prefer prose. A table is justified ONLY if (a) data is genuinely comparative (≥3 attributes per row) AND (b) reader will use it as decision tool, not inventory. 'Catalog of N variants' is anti-pattern — replace with prose covering 2-3 axes + `<details>` for long tail." |
+| **Reference** (API docs, schema definitions) | "Tables OK for structured data. Each table should answer one specific question." |
+| **Catalog** (project listings, comparisons) | "Tables OK but include: (a) ≤ 10 entries in primary table; (b) `<details>` collapsible for long tail; (c) live `gh api` verification step for stars/license/pushed_at — required in `result.md`." |
+| **Migration / mechanical edit** (rename, replace pattern) | "No tables. Concrete file list + diff summary." |
+| **Translation / mirror-sync** | "Maintain source structure VERBATIM. No new tables, no removed tables, no merged tables. Column counts must match per-table across locales. (F2 incident)" |
+
+This block should appear in `## Format guidance` section of every
+task brief. Skipping it is the F6 root cause.
+
+### 6e. Fact-verification step (prevents F4, F5)
+
+For any task that asserts external facts (star counts, model
+releases, license types, benchmark numbers, paper acceptance
+status), the task brief MUST include:
+
+```markdown
+## Fact verification (REQUIRED)
+
+Before writing any "★ Nk", "License: X", or "(Year) Model" claim,
+run the live check:
+
+  # For GitHub repos:
+  gh api repos/<org>/<repo> --jq '{stars: .stargazers_count,
+    license: .license.spdx_id, pushed: .pushed_at, archived: .archived}'
+
+  # For arxiv papers:
+  curl -s "https://arxiv.org/abs/<id>" | grep -o "title>[^<]*"
+
+Quote the actual returned value in `result.md`. Any claim NOT
+verified this way must be marked `(claimed, unverified)` so the
+reconciler / acceptance gate can flag it.
+```
+
+This step prevented the DeepSeek-R2 fabrication incident (F4) when
+applied retroactively.
 
 ### 7. Hand off to the user
 

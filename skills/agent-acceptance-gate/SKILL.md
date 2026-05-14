@@ -54,6 +54,32 @@ Not for:
    `academic-writing-skills` banned-word + claim-evidence audit.
    (Skipped silently if `academic-writing-skills` not installed.)
 
+## Presets (one-line invocation for common acceptance shapes)
+
+Instead of hand-writing acceptance criteria every time, invoke a
+preset that codifies a tested set of checks:
+
+| Preset | When to use | Invocation |
+|---|---|---|
+| `multi-locale-mirror-sync` | After zh-TW → en + zh-Hans mirror sync (or any N-locale fan-out) | `agent-acceptance-gate --preset=multi-locale-mirror-sync --stem=stages/06-foo --required-terms="A,B,C"` |
+| `catalog-entry-add` | Added entries to a catalog file | `agent-acceptance-gate --preset=catalog-entry-add --catalog-file=resources/foo.md --new-entries="org/repo1,org/repo2"` |
+| `fact-check-frontier-models` | Touched a frontier-model table | `agent-acceptance-gate --preset=fact-check-frontier-models --file=stages/06-foo.md --models="GPT-5.5,Claude Opus 4.7"` |
+
+Preset YAMLs live in `presets/`. Each codifies failure modes
+observed in real dogfooding (see `docs/observed-failure-modes.md`).
+Don't hand-write checks if a preset covers your case.
+
+**Mandatory preset trigger conditions** (gate auto-suggests if you
+don't specify):
+
+- Diff touches ≥ 2 locale variants of the same file stem →
+  `multi-locale-mirror-sync` MUST be invoked.
+- Diff adds entries to any file under `resources/` matching catalog
+  shape → `catalog-entry-add` MUST be invoked.
+- Diff touches a frontier-model claim (regex: model name within 3
+  lines of a benchmark %) → `fact-check-frontier-models` MUST be
+  invoked.
+
 ## Workflow
 
 ### 1. Identify round

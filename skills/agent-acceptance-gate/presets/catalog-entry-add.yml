@@ -1,0 +1,99 @@
+# Preset: catalog-entry-add
+# Use when: adding 1-N new entries to a catalog file (project listing,
+# tool comparison, framework catalog). Enforces fact-verification
+# discipline so we don't merge unverified claims.
+#
+# Invocation:
+#   agent-acceptance-gate --preset=catalog-entry-add \
+#     --catalog-file=resources/mcp-skills-catalog.md \
+#     --new-entries="whale,a-stock-data"
+#
+# Origin: codified after F5 (star count drift, mem0 53k vs actual 55.6k)
+# and F4 (DeepSeek-R2 fabrication). See docs/observed-failure-modes.md.
+
+preset_name: catalog-entry-add
+description: |
+  Verify that newly added catalog entries cite live `gh api` star
+  counts, license values, and have been confirmed not-archived /
+  recently-pushed. Catches fabricated entries before merge.
+
+invocation_param:
+  catalog_file:
+    description: "Path to the catalog file being added to"
+    required: true
+  new_entries:
+    description: "Comma-separated repo identifiers (org/name format) being added"
+    required: true
+  star_count_tolerance_pct:
+    description: "Allowed deviation between cited star count and live API value"
+    required: false
+    default: 10
+
+checks:
+
+  - id: catalog_file_exists
+    type: files_exist
+    files:
+      - "{catalog_file}"
+
+  - id: entries_present_in_file
+    type: pattern_present
+    file: "{catalog_file}"
+    patterns_param: new_entries
+    note: "Every claimed-new entry must actually appear in the catalog."
+
+  - id: star_count_live_verification
+    type: github_api_check
+    repos_param: new_entries
+    check: stars_match_cited
+    tolerance_pct_param: star_count_tolerance_pct
+    note: "F5 incident: catalog claimed mem0 53k, live API says 55.6k. ≤10% tolerance allowed for active repos."
+
+  - id: license_live_verification
+    type: github_api_check
+    repos_param: new_entries
+    check: license_matches_cited
+    note: "F4 incident: license claims must be live-verified, not hallucinated."
+
+  - id: not_archived_check
+    type: github_api_check
+    repos_param: new_entries
+    check: not_archived
+    note: "Don't add archived repos to active catalogs."
+
+  - id: recent_activity_check
+    type: github_api_check
+    repos_param: new_entries
+    check: pushed_within_days
+    threshold_days: 180
+    severity: warn
+    note: "Repos with no commits in 6+ months should be flagged 'maintenance status uncertain' in the entry."
+
+  - id: result_md_cites_api_output
+    type: pattern_present
+    file: ".ai/*_result_*.md"
+    patterns:
+      - "gh api"
+      - "stargazers_count"
+    severity: warn
+    note: "Agent's result.md should show the live `gh api` invocation it ran. If absent, the verification probably wasn't done."
+
+  - id: no_marketing_superlatives
+    type: pattern_absent
+    file: "{catalog_file}"
+    patterns:
+      - "the best"
+      - "world.{0,3}s leading"
+      - "革命性"
+      - "唯一"
+      - "全球第一"
+    note: "Catalog entries describe what the repo does, not how 'best' it is."
+
+failure_action: |
+  Catalog entry verification failed. Most likely cause:
+  - Star count drift (re-run gh api, update entry)
+  - Hallucinated license (LLM remembered wrong)
+  - Repo is archived (drop from catalog or mark archived)
+
+  Recommended next step: ask the agent that added the entry to
+  re-run the live verification and update the entry text.

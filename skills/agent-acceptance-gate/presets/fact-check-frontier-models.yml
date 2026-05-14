@@ -1,0 +1,110 @@
+# Preset: fact-check-frontier-models
+# Use when: a task touched a "frontier model" table or claim
+# (e.g., "GPT-5.5 reaches 94% GPQA", "DeepSeek-R2 released 2026-03").
+# These claims are the single highest-risk fabrication category
+# observed in dogfooding.
+#
+# Invocation:
+#   agent-acceptance-gate --preset=fact-check-frontier-models \
+#     --file=stages/06-memory-rag.md \
+#     --models="GPT-5.5,Claude Opus 4.7,DeepSeek-V4-Pro"
+#
+# Origin: F4 incident — DeepSeek-R2 fabrication (a non-existent
+# model with fabricated AIME benchmark) made it into commit
+# 65bf93b on awesome-agentic-ai-zh, caught only by a 3rd-party
+# review agent doing live primary-source search. Never trust the
+# LLM's memory of frontier model releases.
+
+preset_name: fact-check-frontier-models
+description: |
+  Every frontier-model claim (model name + version + release date +
+  benchmark number + license) must trace to a verifiable primary
+  source URL. Hallucination chain detection — if even ONE of the
+  4-tuple fields is fabricated, flag the whole row.
+
+invocation_param:
+  file:
+    description: "File containing the model claims to verify"
+    required: true
+  models:
+    description: "Comma-separated list of model name strings to check"
+    required: true
+
+checks:
+
+  - id: model_string_present
+    type: pattern_present
+    file: "{file}"
+    patterns_param: models
+    note: "If a model name we're asked to verify isn't in the file, the user gave us the wrong models list."
+
+  - id: each_model_has_primary_source_url
+    type: pattern_present_per_token
+    file: "{file}"
+    tokens_param: models
+    require_within_lines_after_token: 5
+    url_patterns:
+      - "openai.com"
+      - "anthropic.com"
+      - "deepmind.google"
+      - "ai.google.dev"
+      - "deepseek.ai"
+      - "huggingface.co"
+      - "arxiv.org"
+      - "qwenlm"
+    note: "Each model name should be within 5 lines of a primary-source URL (official vendor, HF, or arxiv)."
+
+  - id: benchmark_claims_have_citations
+    type: pattern_pair_present
+    file: "{file}"
+    pair:
+      claim_pattern: "\\d+\\.?\\d*%\\s+(on|@)\\s+(AIME|GPQA|MMLU|SWE-bench|HumanEval|MATH|Terminal-bench)"
+      citation_pattern: "(arxiv\\.org|primary source|vendor blog|official benchmark)"
+    note: "Every '94% on GPQA' style claim must have a citation pair within ±3 lines. F4 incident: the 79.7% AIME claim for R2 had no citation because the model didn't exist."
+
+  - id: release_dates_are_in_past
+    type: regex_check
+    file: "{file}"
+    pattern: "(20\\d{2})-(0[1-9]|1[0-2])"
+    constraint: parsed_date_not_future
+    note: "Model 'released 2027-03' when current date is 2026-05 is either fabrication or future-dated speculation. Flag for human review."
+
+  - id: no_hallucinated_version_numbers
+    type: known_models_check
+    models_param: models
+    deny_list:
+      # Models that DON'T exist as of dogfooding date 2026-05-13.
+      # Update this list as models get verified. Pattern match is
+      # case-insensitive.
+      - "DeepSeek-R2"
+      - "GPT-6"
+      - "Claude Opus 5"
+      - "Gemini 4"
+    severity: critical
+    note: "Maintained deny list of known-fabricated model versions. F4 incident pre-empted."
+
+  - id: result_md_cites_verification_method
+    type: pattern_present
+    file: ".ai/*_result_*.md"
+    patterns:
+      - "verified via"
+      - "primary source"
+      - "WebFetch"
+      - "gh api"
+    severity: warn
+    note: "Agent's result.md should explicitly say how each model claim was verified. If absent, was it actually verified?"
+
+failure_action: |
+  Frontier-model fact-check failed. This is the highest-risk
+  category — DO NOT MERGE until resolved.
+
+  For each failing model claim:
+  1. WebFetch the official vendor URL or arxiv URL.
+  2. If the model doesn't exist → REMOVE the row from the file.
+  3. If the model exists but the benchmark number is wrong → fix or
+     remove the number.
+  4. If the version number is on the deny list → confirm with user
+     that the model has been independently released, then update
+     the deny list.
+
+  Never merge "[Model X] (version unverified)" — either verify or remove.

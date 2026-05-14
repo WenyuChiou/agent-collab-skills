@@ -1,0 +1,153 @@
+# Preset: multi-locale-mirror-sync
+# Use when: zh-TW canonical was synced to en + zh-Hans (or any
+# locale fan-out). This is the most common acceptance pattern for
+# curriculum / docs / catalog work.
+#
+# Invocation:
+#   agent-acceptance-gate --preset=multi-locale-mirror-sync \
+#     --stem=stages/06-memory-rag \
+#     --required-terms="agentmemory,mem0,Letta,ragas,DSPy"
+#
+# Origin: codified after Stage 6 (awesome-agentic-ai-zh, 2026-05-13)
+# dogfooding round that found 5+ issues per round via manual grep.
+# See docs/observed-failure-modes.md F1-F4, F8.
+
+preset_name: multi-locale-mirror-sync
+description: |
+  Standard verification after a delegate (typically Gemini) syncs
+  zh-TW canonical to en + zh-Hans mirrors. Enforces 3-locale
+  lockstep, table-structure preservation, banned-phrase audit,
+  anchor validity.
+
+invocation_param:
+  stem:
+    description: "File stem path, e.g. 'stages/06-memory-rag'"
+    required: true
+  required_terms:
+    description: "Comma-separated terms that must appear in all 3 locale variants"
+    required: false
+    default: ""
+  anchor_script:
+    description: "Path to anchor-validator script (defaults to repo's scripts/check-anchors.py if present)"
+    required: false
+    default: "scripts/check-anchors.py"
+
+checks:
+
+  - id: file_existence
+    type: files_exist
+    files:
+      - "{stem}.md"
+      - "{stem}.en.md"
+      - "{stem}.zh-Hans.md"
+
+  - id: line_parity
+    type: file_line_count
+    files:
+      - "{stem}.md"
+      - "{stem}.en.md"
+      - "{stem}.zh-Hans.md"
+    tolerance_pct: 3
+    note: "Mirrors may differ from canonical by up to ±3% due to translation expansion/compression. Bigger delta = Gemini probably dropped or duplicated a section."
+
+  - id: h2_parity
+    type: file_pattern_count
+    pattern: "^## "
+    files:
+      - "{stem}.md"
+      - "{stem}.en.md"
+      - "{stem}.zh-Hans.md"
+    require: same_count
+    note: "All 3 locales must have identical H2 count. Mismatch = section added/dropped during translation."
+
+  - id: table_column_parity
+    type: table_structure_check
+    files:
+      - "{stem}.md"
+      - "{stem}.en.md"
+      - "{stem}.zh-Hans.md"
+    require: matching_column_count_per_table_index
+    note: "F2 incident: Gemini merged a 5-column table into a 3-column table. This check catches it. Compares table N in canonical to table N in each mirror."
+
+  - id: banned_phrases_en
+    type: pattern_absent
+    file: "{stem}.en.md"
+    patterns:
+      - "the most canonical"
+      - "Production-grade Chinese"
+      - "world.{0,3}s best"
+      - "industry.leading"
+      - "revolutionary"
+      - "game.changer"
+      - "best in class"
+    note: "Marketing-speak that snuck in via overconfident LLM translation."
+
+  - id: banned_phrases_zh_hans
+    type: pattern_absent
+    file: "{stem}.zh-Hans.md"
+    patterns:
+      - "全世界最好的"
+      - "業界最強"
+      - "最緊迫"
+      - "革命性"
+      - "颠覆性"
+
+  - id: time_sensitive_phrases
+    type: pattern_absent
+    files:
+      - "{stem}.md"
+      - "{stem}.en.md"
+      - "{stem}.zh-Hans.md"
+    patterns:
+      - "pushed today"
+      - "今天已更新"
+      - "今天 pushed"
+      - "last week"
+      - "this week"
+      - "very recently"
+    note: "F3 incident: time-relative phrasing goes stale in days. Use absolute year or 'actively maintained'."
+
+  - id: simplified_chinese_purity
+    type: pattern_absent
+    file: "{stem}.zh-Hans.md"
+    patterns:
+      - "使用者"
+      - "軟體"
+      - "網路"
+      - "設定"
+      - "視頻"
+      - "資料庫"
+      - "海馬迴"
+    note: "Traditional Chinese leaked into zh-Hans mirror."
+
+  - id: required_terms_cross_locale
+    type: pattern_present_all_files
+    files:
+      - "{stem}.md"
+      - "{stem}.en.md"
+      - "{stem}.zh-Hans.md"
+    patterns_param: required_terms
+    note: "Headline projects/concepts that MUST be in all 3 locales. Mismatch = mirror sync dropped content."
+
+  - id: anchor_strict
+    type: command
+    command: "python {anchor_script} --strict"
+    expect_exit: 0
+    skip_if_missing: true
+    note: "If repo has anchor-validator, run it. Otherwise skip."
+
+  - id: diff_size_subagent_threshold
+    type: diff_size_check
+    threshold_lines: 500
+    when_exceeded: recommend_subagent_review
+    note: "F8 incident: large multi-file diffs blow up main session context. ≥500 lines = mandate agent-acceptance-gate subagent pattern."
+
+failure_action: |
+  Multi-locale mirror sync acceptance failed. Common causes:
+  - Gemini dropped sections (line_parity or h2_parity FAIL)
+  - Gemini merged tables (table_column_parity FAIL)
+  - Banned/time-sensitive phrases leaked through (banned_*_phrases FAIL)
+  - Traditional → Simplified conversion incomplete (simplified_chinese_purity FAIL)
+
+  Recommended next step: re-run Gemini with the failing check echoed
+  back in the task brief as a sentinel string.

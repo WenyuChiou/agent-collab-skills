@@ -98,6 +98,35 @@ Flag any task where:
 - `result_<NNN>_<slug>.md` exceeds `context_policy.result_summary_word_budget`
   (default 250 words) → context contract violated.
 
+### 2.4. Multi-locale lockstep check (catches Gemini drop / merge)
+
+When the round's outputs include ≥ 2 locale variants of the same
+file stem (e.g., `06-memory-rag.md` + `06-memory-rag.en.md` +
+`06-memory-rag.zh-Hans.md`), verify they actually stayed in lockstep:
+
+1. **Line count parity** — each mirror within ±3% of canonical's
+   line count. Larger delta usually means Gemini dropped or
+   duplicated a section.
+2. **H2 count parity** — `grep -c '^## '` returns identical count
+   across all locales.
+3. **Per-table column count parity** — for each markdown table at
+   position N in canonical, verify table N in each mirror has the
+   same column count. (F2 incident in `docs/observed-failure-modes.md`:
+   Gemini merged a 5-column Projects table's rows into a 3-column
+   Tools table.)
+4. **Required headline-term cross-presence** — if `plan.yml` declares
+   `required_terms` for this round, each must appear in every locale
+   variant. Missing in one locale = mirror sync dropped content.
+5. **Anchor strict** — if repo has an anchor validator script,
+   run it. Broken cross-stage links are a common drop-side-effect.
+
+If any of these fail, **defer to the `multi-locale-mirror-sync`
+preset of `agent-acceptance-gate`** rather than computing it
+manually — it's already codified there.
+
+Surface each lockstep failure as **HIGH** in "Aggregated risks":
+the gate will demand a re-run before merging.
+
 ### 2.5. Cross-task ID / slug consistency check (catches agent drift)
 
 Real multi-agent runs sometimes produce outputs that **claim to be

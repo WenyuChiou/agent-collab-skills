@@ -133,15 +133,35 @@ def test_readme_lists_all_6_skills():
 
 def test_plugin_versions_bumped_for_context_policy_release():
     """Adding agent-context-budget and context_policy is a public
-    interface change, so plugin metadata should advertise 0.2.0."""
+    interface change; versions must be ≥ 0.2.0 and synchronized
+    across plugin.json + marketplace.json metadata + marketplace
+    plugins entry. Floor-versioned to allow post-release patches
+    without test churn.
+    """
     plugin = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
     marketplace = json.loads(
         (ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
     )
 
-    assert plugin["version"] == "0.2.0"
-    assert marketplace["metadata"]["version"] == "0.2.0"
-    assert marketplace["plugins"][0]["version"] == "0.2.0"
+    def parse_semver(v: str) -> tuple:
+        return tuple(int(x) for x in v.split("."))
+
+    floor = parse_semver("0.2.0")
+
+    plugin_v = parse_semver(plugin["version"])
+    marketplace_meta_v = parse_semver(marketplace["metadata"]["version"])
+    marketplace_plugin_v = parse_semver(marketplace["plugins"][0]["version"])
+
+    assert plugin_v >= floor, f"plugin.json version {plugin['version']} < 0.2.0"
+    assert marketplace_meta_v >= floor
+    assert marketplace_plugin_v >= floor
+
+    # All three must be synchronized (don't let them drift apart)
+    assert plugin_v == marketplace_meta_v == marketplace_plugin_v, (
+        f"Version drift: plugin.json={plugin['version']}, "
+        f"marketplace.metadata={marketplace['metadata']['version']}, "
+        f"marketplace.plugins[0]={marketplace['plugins'][0]['version']}"
+    )
 
 
 def test_install_scripts_present():
