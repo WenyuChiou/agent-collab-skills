@@ -52,7 +52,11 @@ Not for:
      "risks": [],
      "files_changed": [],
      "tests_run": [],
-     "timestamp_utc": "..."
+     "timestamp_utc": "...",
+
+     // v0.2.2+ optional fields — see §2.6 promise/delivery contract:
+     "promised": [],   // artifacts this task surfaces for downstream consumers
+     "consumed": []    // artifacts this task used from upstream tasks
    }
    ```
    Each entry in `risks` must be a single sentence (≤ 30 words).
@@ -158,6 +162,57 @@ If drift is severe (entire summary is about a different task /
 scenario), recommend re-running that task with file-system access
 or with the prompt body itself containing all critical context
 (rather than just paths to read).
+
+### 2.6. Promise vs delivery contract check (W2 — sequential hand-off integrity)
+
+When tasks form a sequential chain (e.g., research-agent → write-agent →
+verify-agent), each task's `result.json` MAY declare a `promised` field
+listing artifacts the downstream consumer is expected to use:
+
+```json
+{
+  "status": "ok",
+  "summary": "...",
+  "promised": [
+    {"kind": "video_url", "count": 5,
+     "detail": ["lVdajtNpaGI", "M2Yg1kwPpts", "bJFtcwLSNxI", "abc123", "def456"]},
+    {"kind": "concept_mapping", "count": 19}
+  ]
+}
+```
+
+The downstream consumer's `result.json` MAY declare a matching `consumed` field:
+
+```json
+{
+  "consumed": [
+    {"kind": "video_url", "count": 3,
+     "detail": ["lVdajtNpaGI", "M2Yg1kwPpts", "bJFtcwLSNxI"]}
+  ]
+}
+```
+
+The reconciler computes the diff:
+- Promised but not consumed → soft WARN (downstream agent ignored part of upstream contract — may be intentional / out of scope for this round)
+- Consumed but not promised → **HIGH** (downstream agent invented artifacts not in any upstream `promised` list — likely hallucination)
+- Counts mismatch → WARN
+
+**Severity asymmetry rationale**: dropped artifacts (promised but not
+consumed) are common in real workflows — research surfaces 10 facts,
+write pass uses 7 because 3 weren't relevant. Invented artifacts
+(consumed but not promised) are a different signal entirely — the
+agent claims to use something nobody surfaced, which strongly
+indicates fabrication. WARN vs HIGH reflects this difference in
+expected legitimacy.
+
+This is the **contract-driven hand-off** check. It catches the common
+case where upstream research surfaces N facts, but downstream write
+pass only uses M < N. Without this check, the contract is implicit
+and silently breakable.
+
+**Backward compatibility**: `promised` / `consumed` are optional fields.
+Tasks without them skip this check (no FAIL). Adoption is incremental —
+agents that opt-in benefit from the contract verification.
 
 ### 3. Compute cross-task analysis
 

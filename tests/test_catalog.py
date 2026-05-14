@@ -25,6 +25,7 @@ EXPECTED_SKILLS = [
     "agent-debate",
     "agent-shared-memory",
     "agent-acceptance-gate",
+    "agent-plan-act-reflect",  # v0.2.2 — single-agent iterative self-correction
 ]
 
 
@@ -123,9 +124,11 @@ def test_skill_md_has_valid_frontmatter():
         )
 
 
-def test_readme_lists_all_6_skills():
-    """README must mention all 6 skills by name so users searching
-    for a particular capability find their way in."""
+def test_readme_lists_all_expected_skills():
+    """README must mention all expected skills by name so users
+    searching for a particular capability find their way in.
+    (Was originally `test_readme_lists_all_6_skills`; renamed in v0.2.2
+    after adding the 7th skill agent-plan-act-reflect.)"""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     for skill_name in EXPECTED_SKILLS:
         assert skill_name in readme, f"README missing reference to {skill_name}"

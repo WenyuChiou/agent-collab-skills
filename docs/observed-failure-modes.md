@@ -225,6 +225,67 @@ Do NOT poll. Do NOT schedule wakeup unless task is truly idle for
 
 ---
 
+## F11. Codex over-applies sweep rules to meta-documentation tables (CRITICAL, recurring)
+
+**What happened**: Round 2 of 2026-05-14 plain-language refactor. Brief said
+"sweep `「默認」` → `「預設」` across zh-TW canonical files (skip code
+blocks)". Codex applied the sweep correctly to prose **but also rewrote
+the contrast table row in `resources/style-guide.md`**:
+
+Before: `| 默認 | 預設 |` (this row literally documents the convention)
+After: `| 簡體慣用詞（表示預設） | 預設 |` (replaced the documenting term)
+
+The contrast table's whole purpose is to document zh-Hans → zh-TW mappings;
+removing the literal term destroys the documentation.
+
+**Root cause**: Codex applies sweep rules at character level without
+recognizing that some occurrences are **meta-references to the rule itself**.
+A documentation table that contains the term being swept is a meta-level
+reference, not a content-level occurrence.
+
+**Skill change**: `agent-task-splitter` step 6d (Task-shape guidance) now
+has explicit rule:
+
+> **Skip meta-documentation tables**: do NOT replace term X with term Y
+> in any row that literally documents the X→Y mapping. This includes
+> style guides, glossary contrast tables, conversion tables, and any
+> convention reference. The literal term must remain to document the rule.
+
+Also: `agent-acceptance-gate` `multi-locale-mirror-sync.yml` preset adds
+exemption for paths under `resources/style-guide*.md`.
+
+---
+
+## F12. Codex injects unrequested attribution / metadata lines (HIGH, observed once)
+
+**What happened**: Same Round 2 session. T4 brief asked Codex to add
+inline glosses for jargon terms (`context fragmentation`, `frontmatter`,
+etc.) on Stage 6/7 zh-TW canonical files. Codex did this correctly **but also
+inserted a new line in `stages/02-prompt-engineering.zh-Hans.md`**:
+
+```
+> Attributions: Karpathy, Simon Willison, Addy Osmani
+```
+
+Not requested. Worse, in the en mirror Codex **replaced** the greeting
+paragraph with this attribution line, corrupting the file.
+
+**Root cause**: Codex sometimes interprets "add gloss explaining X" as
+license to add **any** metadata about X, including authorship / source
+attribution that the brief never asked for.
+
+**Skill change**: `agent-task-splitter` step 6d adds explicit rule:
+
+> **No metadata injection**: do NOT add lines like `Attributions: <names>`,
+> `Source: <link>`, `Citations: <list>`, or any metadata beyond what the
+> brief explicitly requested. Glosses are inline explanations, not
+> source attributions. If attribution is needed, the brief will say so.
+
+Also: `agent-acceptance-gate` `multi-locale-mirror-sync.yml` preset adds
+check for unrequested `Attribution`/`Source`/`Credits` line insertions.
+
+---
+
 ## Summary — patterns that emerged
 
 1. **Gemini-specific failures** dominate over Codex-specific failures.

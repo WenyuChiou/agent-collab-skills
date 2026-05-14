@@ -102,10 +102,58 @@ checks:
       - "pushed today"
       - "今天已更新"
       - "今天 pushed"
+      - "very recently"
+    # v0.2.2: exempt patterns inside dialogue quotes (e.g., "User said
+    # last week 'I eat vegan'" is a pedagogical example, not a repo
+    # date claim). Implementer should strip content between `"..."` /
+    # `「...」` / `'...'` before pattern match.
+    exempt_when_inside:
+      - "\"[^\"]+\""        # English double-quotes
+      - "「[^」]+」"          # 繁體中文 quotes
+      - "「[^」]+」"          # 简体中文 quotes (same chars)
+      - "'[^']+'"           # English single-quotes
+    # Patterns that became false positives in R5 dogfood
+    # ("last week" / "this week" inside user dialogue examples).
+    # These are now warnings only, not blocking failures:
+    soft_patterns:
       - "last week"
       - "this week"
-      - "very recently"
-    note: "F3 incident: time-relative phrasing goes stale in days. Use absolute year or 'actively maintained'."
+      - "next week"
+      - "yesterday"
+      - "tomorrow"
+    note: "F3 incident: time-relative phrasing goes stale in days. Use absolute year or 'actively maintained'. v0.2.2: pedagogical examples inside quotes are exempt; soft warnings for ambiguous cases."
+
+  - id: unrequested_attribution_lines
+    type: pattern_absent
+    files:
+      - "{stem}.md"
+      - "{stem}.en.md"
+      - "{stem}.zh-Hans.md"
+    patterns:
+      - "^>?\\s*Attributions?:\\s*"
+      - "^>?\\s*Sources?:\\s*"
+      - "^>?\\s*Credits?:\\s*"
+      - "^>?\\s*Citations?:\\s*"
+    severity: warn
+    note: "F12 incident: Codex inserted 'Attributions: Karpathy, Simon Willison, Addy Osmani' into mirror files unrequested. Glosses are inline explanations, not source attributions. If brief didn't ask for attribution, this is drift."
+
+  - id: meta_doc_table_preservation
+    type: pattern_preserved
+    only_when_in_diff: true
+    severity: fail
+    files:
+      - "resources/style-guide.md"
+      - "resources/style-guide.zh-Hans.md"
+      - "resources/style-guide.en.md"
+    must_contain:
+      # Literal terms that document the zh-Hans ↔ zh-TW convention.
+      # These MUST survive any sweep — they document the rule itself.
+      - "| 默認 |"
+      - "| 預設 |"
+      - "| 默认 |"
+      - "| 设置 |"
+      - "| 設定 |"
+    note: "F11 incident: Codex over-applied 默認→預設 sweep to the style-guide contrast table that DOCUMENTS the convention. If a sweep round modifies any style-guide file, this check verifies the literal documenting terms still appear in the contrast tables. only_when_in_diff: skip the check if no style-guide file was touched."
 
   - id: simplified_chinese_purity
     type: pattern_absent

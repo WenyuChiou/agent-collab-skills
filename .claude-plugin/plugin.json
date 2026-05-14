@@ -1,7 +1,7 @@
 {
   "name": "agent-collab-workspace",
   "description": "6 skills for context-safe multi-agent collaboration: task-splitter, context-budget, output-reconciler, debate, shared-memory, and acceptance-gate. Composes with codex-delegate + gemini-delegate via bounded .ai task packets, .coord context policy, and result.json contracts.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "author": {
     "name": "Wenyu Chiou"
   },

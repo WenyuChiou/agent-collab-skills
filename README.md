@@ -73,7 +73,7 @@ claude plugin marketplace add WenyuChiou/agent-collab-skills
 claude plugin install agent-collab-workspace@agent-collab-skills
 ```
 
-This installs all 6 skills as one bundle. Verify:
+This installs all 7 skills as one bundle. Verify:
 
 ```bash
 claude plugin list
@@ -100,7 +100,7 @@ Otherwise leave `CLAUDE.md` alone — the skills are designed to work via descri
 
 ---
 
-## The 6 skills
+## The 7 skills
 
 | Skill | Triggered when you say... | Writes to `.coord/` |
 |---|---|---|
@@ -110,6 +110,7 @@ Otherwise leave `CLAUDE.md` alone — the skills are designed to work via descri
 | **`agent-debate`** | "Have Claude and Codex debate this design" / "Adversarial review on X" | `debate_<topic>.md` |
 | **`agent-shared-memory`** | "Update shared memory with X" / "What have agents decided so far?" | `memory.yml` |
 | **`agent-acceptance-gate`** | "Run the acceptance gate" / "Pre-commit check before merging" | `acceptance_<NNN>.md` |
+| **`agent-plan-act-reflect`** (v0.2.2) | "Iterate on X until it passes Y" / "Self-correct this draft" | `par_<topic>.yml` + `par_<topic>_final.md` |
 
 Numbering `<NNN>` matches the `round` field in `plan.yml` so artifacts
 trace back to the run that produced them.

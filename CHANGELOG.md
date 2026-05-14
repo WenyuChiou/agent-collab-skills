@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.2] - 2026-05-14
+
+### Added — 7th skill + W1-W5 hardening from real dogfood
+
+After the 2026-05-13 R2 dogfood discovered F11 (over-applied sweep
+to meta-doc tables) and F12 (unrequested attribution injection), and
+the 2026-05-14 6-round dogfood validated the bundle's ~6-7× saving,
+this release codifies the hardening:
+
+- New 7th skill `agent-plan-act-reflect` for single-agent iterative
+  self-correction (different from `agent-debate`'s 2-agent adversarial
+  pattern). Plan → Act → Reflect → Revise loop with bounded iterations.
+- `docs/observed-failure-modes.md` adds F11 + F12 entries (now F1-F12).
+- `agent-task-splitter`:
+  - Step 6 adds REQUIRED "Pre-task scope confirmation" block — delegate
+    must echo back scope as first action (W1).
+  - Step 6d adds explicit F11 + F12 drift guards in every brief.
+- `agent-acceptance-gate`:
+  - New §6.6 "Scope diff check" — compares `git diff --name-only`
+    against `files_in_scope`, FAIL on out-of-scope edits (W1 enforcement).
+  - Mandatory preset triggers now apply to F11 + F12 patterns.
+- `agent-output-reconciler`:
+  - New §2.6 "Promise vs delivery contract check" — verifies sequential
+    hand-off chains (research → write → verify) deliver on upstream
+    promises (W2).
+- `agent-context-budget`:
+  - New `default_max_cost_usd` + `total_round_max_cost_usd` fields in
+    `context_policy`. Per-task `budget.max_cost_usd` overrides (W3).
+- `agent-acceptance-gate/presets/multi-locale-mirror-sync.yml`:
+  - `time_sensitive_phrases` adds `exempt_when_inside` for dialogue
+    quotes (R5 false-positive fix) + `soft_patterns` for ambiguous cases.
+  - New `unrequested_attribution_lines` check (F12 regression guard).
+  - New `meta_doc_table_preservation` check (F11 regression guard).
+
+### Changed
+
+- Plugin version 0.2.1 → 0.2.2 across `plugin.json` + `marketplace.json`.
+
+### Validated
+
+- 6-round dogfood on `awesome-agentic-ai-zh` plain-language refactor
+  (2026-05-14) — see `docs/measured-benefits.md` for ~6-7× saving
+  documentation.
+
 ## [0.2.1] - 2026-05-13
 
 ### Added — guardrails distilled from real dogfooding incidents

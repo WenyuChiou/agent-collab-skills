@@ -103,6 +103,8 @@ def test_observed_failure_modes_doc_exists_and_covers_real_incidents():
         "F8",  # Large diff context bloat
         "F9",  # Cascading review rounds
         "F10",  # Stale ScheduleWakeup
+        "F11",  # Codex over-applies sweep to meta-doc tables (v0.2.2)
+        "F12",  # Codex injects unrequested attribution lines (v0.2.2)
     ]
     for fid in required_failure_ids:
         assert f"## {fid}." in text, (
@@ -152,3 +154,61 @@ def test_acceptance_gate_skill_documents_presets():
         assert preset_name in text, (
             f"acceptance-gate SKILL.md must reference preset '{preset_name}'"
         )
+
+
+def test_v022_plan_act_reflect_skill_present():
+    """v0.2.2 added a 7th skill: agent-plan-act-reflect.
+    SKILL.md must exist with valid frontmatter."""
+    skill_path = ROOT / "skills" / "agent-plan-act-reflect" / "SKILL.md"
+    assert skill_path.exists(), "v0.2.2 skill agent-plan-act-reflect not found"
+
+    text = skill_path.read_text(encoding="utf-8")
+    assert text.startswith("---\n"), "Missing YAML frontmatter delimiter"
+    assert "name: agent-plan-act-reflect" in text
+    assert "description:" in text
+    # The skill should explicitly distinguish from agent-debate
+    assert "agent-debate" in text, (
+        "agent-plan-act-reflect must reference agent-debate to clarify "
+        "the single-agent-self-correction vs 2-agent-adversarial distinction"
+    )
+
+
+def test_v022_cost_gate_in_context_budget():
+    """v0.2.2 added max_cost_usd field to agent-context-budget."""
+    skill_path = ROOT / "skills" / "agent-context-budget" / "SKILL.md"
+    text = skill_path.read_text(encoding="utf-8")
+    assert "max_cost_usd" in text, (
+        "agent-context-budget must document max_cost_usd field in v0.2.2"
+    )
+    # Should specifically explain why both token AND cost budgets exist
+    assert "default_max_cost_usd" in text
+
+
+def test_v022_f11_f12_guards_in_preset():
+    """v0.2.2 multi-locale-mirror-sync.yml preset must contain
+    explicit F11 + F12 regression guards.
+    """
+    import yaml
+
+    preset = ROOT / "skills" / "agent-acceptance-gate" / "presets" / "multi-locale-mirror-sync.yml"
+    data = yaml.safe_load(preset.read_text(encoding="utf-8"))
+
+    check_ids = {c["id"] for c in data["checks"]}
+    assert "unrequested_attribution_lines" in check_ids, (
+        "F12 regression guard missing from preset"
+    )
+    assert "meta_doc_table_preservation" in check_ids, (
+        "F11 regression guard missing from preset"
+    )
+
+
+def test_v022_pre_task_scope_confirmation_in_task_splitter():
+    """v0.2.2 task-splitter step 6 must require pre-task scope echo."""
+    skill_path = ROOT / "skills" / "agent-task-splitter" / "SKILL.md"
+    text = skill_path.read_text(encoding="utf-8")
+    assert "Pre-task scope confirmation" in text, (
+        "task-splitter v0.2.2 must require pre-task scope echo block"
+    )
+    assert "Confirmed scope" in text, (
+        "task-splitter v0.2.2 must include scope confirmation template"
+    )

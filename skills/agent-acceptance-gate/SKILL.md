@@ -185,6 +185,43 @@ Violations make the verdict at most **CONDITIONAL PASS**. If the
 violation hides acceptance evidence, mark **FAIL** and require a
 bounded summary rewrite.
 
+### 6.6. Scope diff check (W1 — work boundary enforcement, file-level)
+
+Compare `git diff --name-only` against each task's declared `files_in_scope`
+(from `.coord/plan.yml` task entries).
+
+For each modified file F in the diff:
+- If F appears in **any** task's `files_in_scope` → in-scope ✅
+- If F is a "transitive fix" (e.g., anchor heading sync, mentioned in
+  task's result.md as intentional spillover with justification) →
+  accept with WARN
+- Otherwise → **FAIL** with message: `Scope violation: <file> not in
+  any task's files_in_scope; agent went outside brief`
+
+This is the **file-level enforcement** for the W1 work boundary discipline.
+Without this check, brief writing "files in scope: [a, b, c]" is just
+guidance — the agent may still touch [d, e, f] and only manual diff
+review would catch it.
+
+**What this check does NOT verify** (be honest):
+- It does NOT verify the agent actually emitted the `Confirmed scope:`
+  echo block before editing. `git diff --name-only` only tells you which
+  files got modified — it can't reconstruct whether the echo was the
+  agent's first action. If you need echo verification, add an
+  optional secondary check that greps the agent's `result.md` for the
+  `Confirmed scope:` sentinel string.
+- It does NOT catch scope violations WITHIN a permitted file (e.g.,
+  agent was told to edit `foo.md` section §3 but also edited §1). Use
+  finer-grained acceptance criteria (per-section grep / line-range
+  check) for that.
+
+**F11 + F12 specific catches**:
+- If diff touches `resources/style-guide*.md` AND the change replaces
+  a literal term in a contrast table → FAIL (F11 violation)
+- If diff inserts a line matching pattern `^>?\s*(Attribution|Source|
+  Credits|Citation)s?:\s*` that wasn't requested in brief → FAIL
+  (F12 violation)
+
 ### 7. Compose verdict
 
 | Condition | Verdict |

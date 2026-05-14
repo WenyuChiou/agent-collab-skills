@@ -34,6 +34,37 @@ context_policy:
   log_tail_lines_on_error: 50
   raw_log_policy: path-only
   agentmemory: optional
+
+  # W3 — $ cost gate per task (v0.2.2+)
+  # Optional. If set, agent-acceptance-gate flags any task whose
+  # codex/gemini delegate exceeded the cap. Estimated from token
+  # usage × provider price (Anthropic / OpenAI / Google rates).
+  # Set per-task in plan.yml tasks[].budget.max_cost_usd to override.
+  default_max_cost_usd: 0.50  # default $ ceiling per task
+  total_round_max_cost_usd: 5.00  # hard stop for the entire round
+```
+
+**Why both `token` and `cost` budgets?** Token gate prevents context
+bloat (a session quality concern). Cost gate prevents runaway delegation
+spend (a financial concern). They're orthogonal: a 2k-token delegate
+call can cost $0.05 (Claude Haiku) or $0.50 (Claude Opus), so token
+count alone doesn't bound dollars.
+
+Per-task override example:
+
+```yaml
+# in plan.yml
+tasks:
+  - id: T1
+    agent: codex
+    slug: simple-refactor
+    budget:
+      max_cost_usd: 0.10  # this task is mechanical, cap low
+  - id: T2
+    agent: codex
+    slug: complex-rewrite
+    budget:
+      max_cost_usd: 2.00  # this task needs frontier model, allow higher
 ```
 
 ## Workflow

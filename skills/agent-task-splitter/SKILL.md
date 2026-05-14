@@ -197,6 +197,30 @@ Codex and Gemini have **different task file conventions**. Don't use
 a single template for both — each delegate skill expects its own
 shape.
 
+**Every task brief MUST include a pre-task scope confirmation block
+(W1, prevents drift)**:
+
+```markdown
+## Pre-task scope confirmation (REQUIRED — your first action)
+
+Before any file edit, echo back the scope you understand:
+
+  Confirmed scope: will touch
+    - <file1>
+    - <file2>
+  Will NOT touch
+    - <file3>
+    - any file not listed under "Files in scope" above
+    - any meta-documentation table (F11)
+    - any unrequested metadata line (F12)
+
+If your understanding doesn't match the brief's "Files in scope"
+section, STOP and ask for clarification before editing anything.
+```
+
+This block is verified post-task by `agent-acceptance-gate` §6.6
+(scope diff check via `git diff --name-only`).
+
 #### 6a. Codex task files (`agent: codex`)
 
 Path: `.ai/codex_task_<NNN>_<slug>.md`. `<NNN>` is the zero-padded
@@ -377,6 +401,33 @@ Before writing the task body, classify the task by **output shape**:
 This block should appear in `## Format guidance` section of every
 task brief. Skipping it is the F6 root cause.
 
+**Also include these 2 explicit prohibitions in every brief that
+applies a sweep rule across files (prevents F11, F12)**:
+
+```markdown
+## Drift guards — DO NOT (F11, F12 from docs/observed-failure-modes.md)
+
+### F11. Skip meta-documentation tables
+
+Do NOT replace term X with term Y in any row that literally documents
+the X→Y mapping. This applies to:
+- `resources/style-guide.md` contrast tables (zh-TW ↔ zh-Hans conversion)
+- Glossary entries where the term being swept IS the entry title
+- Any "convention reference" table
+
+The literal term must remain to document the rule itself.
+
+### F12. No metadata injection
+
+Do NOT add any of these lines unless the brief explicitly requests:
+- `Attributions: <names>` / `Attribution: <name>` / `Credits: ...`
+- `Source: <link>` / `Citation: <ref>` / `References: ...`
+- Any meta-line about the document's authorship / sourcing
+
+Glosses are INLINE explanations of jargon, NOT source attributions.
+If attribution is needed, the brief will say so explicitly.
+```
+
 ### 6e. Fact-verification step (prevents F4, F5)
 
 For any task that asserts external facts (star counts, model
@@ -422,15 +473,19 @@ Next steps:
     --prompt "Read .ai/codex_task_001_<slug1>.md and execute all instructions inside." \
     --log-file .ai/codex_log_001_<slug1>.txt
 
-  # Option B — direct codex exec (must close stdin or codex hangs):
+  # Option B — direct codex exec with -o for structured result (preferred over raw stdout):
   codex exec --full-auto -m gpt-5.4 \
+    -o .ai/codex_result_001_<slug1>.jsonl \
     "Read .ai/codex_task_001_<slug1>.md and execute all instructions inside." \
-    < /dev/null > .ai/codex_log_001_<slug1>.txt 2>&1
+    < /dev/null
+  # If you must capture stdout (diagnostics only), CAP it (prevents the
+  # 7 GB runaway-log incident — see step 6a):
+  #   ... 2>&1 | head -c 10485760 > .ai/codex_log_001_<slug1>.txt
 
-  # Run gemini tasks (must inline + close stdin per Known issues / step 6b):
-  TASK=$(cat .ai/gemini_task_001_<slug3>.md)
-  gemini -p "$TASK" --yolo \
-    < /dev/null > .ai/gemini_log_001_<slug3>.txt 2>&1
+  # Run gemini tasks via stdin pipe (bypasses gitignore + caps stdout in one go):
+  cat .ai/gemini_task_001_<slug3>.md | gemini --yolo -p \
+    "Below is your full task brief via stdin. Execute it. Report PASS/FAIL at end." \
+    2>&1 | head -c 10485760 > .ai/gemini_log_001_<slug3>.txt
 
   # After all delegate tasks finish, reconcile:
   # invoke agent-output-reconciler in this session
