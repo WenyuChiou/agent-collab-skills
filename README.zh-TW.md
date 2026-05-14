@@ -33,6 +33,8 @@ session 記住決策、怎麼把好幾個 agent 的成果合併進主分支。
 
 想看 token 量測與事件紀錄可翻 [`docs/measured-benefits.md`](docs/measured-benefits.md)，但 README 的重點就是上面這三件事。
 
+> 📋 **什麼時候該 invoke 哪個 skill / preset？** 看 [`docs/when-to-invoke.md`](docs/when-to-invoke.md)——含 trigger 規則、YES / NO / judgment-call 場景對照、決策流程圖、以及一份**直接可貼進你自己專案的 CLAUDE.md 範本**（把規則 codify 進你的工作流）。
+
 ---
 
 ## 安裝

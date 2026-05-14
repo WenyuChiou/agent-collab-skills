@@ -34,6 +34,8 @@ Three high-leverage scenarios where these skills clearly pay off:
 
 Token measurements and incident logs are in [`docs/measured-benefits.md`](docs/measured-benefits.md) for the curious — but the practical takeaway is just the three scenarios above.
 
+> 📋 **When should I actually invoke which skill / preset?** See [`docs/when-to-invoke.md`](docs/when-to-invoke.md) — has the trigger rules, YES / NO / judgment-call scenarios, decision flowchart, and a **copy-paste CLAUDE.md template** you can drop into your own project to codify the rules.
+
 ---
 
 ## Install
