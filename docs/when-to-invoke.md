@@ -46,7 +46,7 @@ This doc closes a recurring failure mode — operators skip the skill / preset b
 
 ---
 
-## TL;DR — the 4 decision rules
+## TL;DR — the 5 decision rules
 
 | If the round has... | Do this | Why |
 |---|---|---|
@@ -147,13 +147,15 @@ invoke agent-acceptance-gate \
 
 ### 3. Other skills (no mandatory presets, judgment call)
 
-| Skill | Use when |
-|---|---|
-| `agent-context-budget` | Context window > 60% used + 2+ more delegate runs planned |
-| `agent-output-reconciler` | 2-3+ delegates produced outputs that need to merge into one final |
-| `agent-debate` | Design decision where 2 perspectives matter (Claude vs Codex argue) |
-| `agent-shared-memory` | Multi-round session where decisions need to persist across rounds |
-| `agent-plan-act-reflect` | Iterative quality refinement (PAR loop until acceptance check passes) |
+| Skill | Use when | Concrete example |
+|---|---|---|
+| `agent-context-budget` | Context window > 60% used + 2+ more delegate runs planned | "Main session at 130k / 200k tokens, need 2 more codex sweeps + 1 gemini translate — budget the remaining 70k across 3 runs" |
+| `agent-output-reconciler` | 2-3+ delegates produced outputs that need to merge into one final | Codex wrote `paper3-results.md` + Gemini wrote `paper3-results.zh.md` + Claude reviewed both → reconcile into single `paper3-final.md` |
+| `agent-debate` | Design decision where 2 perspectives matter (Claude vs Codex argue, you arbitrate) | "Should this be one big SKILL.md or split into 3 sub-skills?" → Claude argues 1, Codex argues 3, transcript saved to `.coord/debate_skill_structure.md`, you decide |
+| `agent-shared-memory` | Multi-round session where decisions need to persist across rounds | Across 4 rounds editing same paper: round-1 decided abstract structure, round-3 needs to recall it — `.coord/memory.yml` holds the prior decisions |
+| `agent-plan-act-reflect` | Iterative quality refinement (PAR loop until acceptance check passes) | "Banned-phrase audit on Section 5 fails repeatedly" → PAR loop: plan rewrite → act (rewrite) → reflect (re-run audit) → loop until PASS |
+
+→ `agent-plan-act-reflect` is the **alternative to a full splitter + reconciler cycle** when you're iterating on ONE artifact's quality, not orchestrating multiple parallel outputs. Use it when the task is "make this thing better until check X passes", not "split this work across N agents".
 
 ---
 
@@ -188,6 +190,63 @@ invoke agent-acceptance-gate \
   Preset PASS → commit
   Preset FAIL → fix + re-run, OR re-delegate
 ```
+
+---
+
+## When a preset FAILS — what to do
+
+Presets are advisory checks before commit. A FAIL is not a soft warning to override — it blocks until resolved. Three paths, in order of preference:
+
+### Path 1 — Fix the diff manually + re-run the same preset (default)
+
+For most FAILs (broken anchor, missing required term, line-parity off, mirror divergence), the issue is identifiable from the FAIL message. Examples:
+
+- `anchor_strict FAIL: target X not found` → either the target file's heading changed (update reference) or the reference is stale (update or remove)
+- `required_terms FAIL: "Context Engineering" missing from zh-Hans` → add the term in the right section
+- `line_parity FAIL: zh-TW 188 vs zh-Hans 250` → check if zh-Hans accidentally retained old + new section; trim or align
+
+After the fix, re-run the same preset. If PASS → commit. If FAIL again → check whether your "fix" actually addressed the diagnosed problem.
+
+### Path 2 — Re-delegate to the original agent with the FAIL output as new brief
+
+When the FAIL points at a delegate's output (e.g., Gemini produced zh-Hans with wrong terminology), do NOT manually fix the delegate's output yourself — re-delegate with the FAIL log as context. Append to the original brief:
+
+```markdown
+## Issues to fix (from acceptance-gate FAIL)
+
+The previous run produced output with the following issues that the
+multi-locale-mirror-sync preset caught:
+
+[paste the preset FAIL log here verbatim]
+
+Re-do the same task with these specific issues addressed. Keep the
+rest of your previous output intact.
+```
+
+This preserves the agent-as-author boundary — operators don't ship-by-hand the agent's work; agents stay accountable for their own outputs.
+
+### Path 3 — Override (rare, document it)
+
+If the preset is wrong about the specific case (false positive, e.g., a banned-phrase check flagging a term that's correctly used in a code block), document the override in the commit message:
+
+```
+docs(...): apply X change
+
+Preset FAIL override: multi-locale-mirror-sync flagged "function" as banned-
+phrase in zh-Hans line 47, but the line is inside a `<pre>` code block
+showing literal API name. False positive; pattern needs refinement.
+
+Filed v0.2.4 backlog: preset should skip banned-phrase check inside
+fenced code blocks.
+```
+
+Override should be the exception, not the routine. If you find yourself overriding 2+ times in the same week, the preset's checks need refinement, not your patience.
+
+### Never do this
+
+- **Don't disable the preset** (e.g., comment out the YAML check) to "make CI green"
+- **Don't commit with a FAIL** and "fix it later" — later doesn't happen
+- **Don't manually edit the delegate's output to make the preset PASS** without re-delegating; this hides the underlying drift cause
 
 ---
 
@@ -234,7 +293,7 @@ Without all three layers, the rules below are not enforceable — `agent-task-sp
 
 ### Anti-patterns to watch (from observed-failure-modes.md)
 
-- **F11**: parallel sweeps without splitter → one agent overreaches into another's scope
+- **F11**: Codex applies a sweep rule to meta-documentation tables that document the rule itself (e.g., a style-guide contrast table containing the term being swept) — intra-agent scope overreach
 - **F12**: parallel agents add unrequested attributions without coordinator
 - **F13**: Gemini "liar mode" — claims success without writing files (use Codex for high-stakes mirror sync, or verify mtime)
 - **F14**: skipping mandatory preset because task "felt simple" → drift ships
