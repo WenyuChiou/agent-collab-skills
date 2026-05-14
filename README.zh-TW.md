@@ -23,6 +23,38 @@ session 記住決策、怎麼把好幾個 agent 的成果合併進主分支。
 
 ---
 
+## ⏱ 實測效益（真實 dogfood、不是 napkin math）
+
+一個 production session 實測——[`awesome-agentic-ai-zh`](https://github.com/WenyuChiou/awesome-agentic-ai-zh)
+5-round plain-language refactor（2026-05-14、9 個 task 跨 5 個 round、每個 round 都測）：
+
+| Round | 任務類型 | 主 session token | 不用 skills（inline） | 省幾倍 |
+|---|---|---|---|---|
+| R1 | 名詞定義（Claude judgment）| ~6.5k | ~6.5k | **1×**（沒幫上）|
+| R2 | 機械式 sweep（Codex × 2 parallel）| ~5k | ~37k | **~7×** |
+| R3 | Pedagogical 重寫（Claude judgment）| ~3k | ~15-20k | **~5×** |
+| **R4 + R5** | **Mirror sync（Gemini）+ acceptance gate（subagent）**| **~6k** | **~80-100k** | **~13-16×** ⭐ |
+| R6 | GitHub triage（gh CLI 直接）| ~0.5k | ~0.5k | **1×**（skill 不相關）|
+| **TOTAL** | | **~21k** | **~140-165k** | **平均 ~7-8×** |
+
+**另外抓到 2 個 drift incident**（F11 過度套用 meta-doc sweep、F12 沒被請求就加 attribution）——如果沒 reviewer-reject pattern、這些 bug 會直接 ship。**這個價值無法 token 量化、但極關鍵**。
+
+**省 token 主要來自**：
+- Multi-locale mirror sync（Gemini delegate）：peak 13-16× saving
+- Codex parallel 機械 sweep：7× saving + drift catch
+- Subagent acceptance gate：取代手刻 `grep × N` 命令
+- **Spec-as-code presets**（multi-locale-mirror-sync / catalog-entry-add /
+  fact-check-frontier-models）——省去手寫 acceptance criteria
+
+**沒幫上的場景**（誠實講）：
+- 純判斷工作（重寫 prose 為了易讀、架構決策）
+- 單檔小修
+- 即時探索 / ideation 階段
+
+**完整報告**：[`docs/measured-benefits.md`](docs/measured-benefits.md)
+
+---
+
 ## 安裝
 
 前置：Claude Code (https://claude.ai/code)。建議（非必要）已透過

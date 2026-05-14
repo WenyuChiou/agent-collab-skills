@@ -24,6 +24,42 @@ Sister marketplace: [`ai-research-skills`](https://github.com/WenyuChiou/ai-rese
 
 ---
 
+## ⏱ Measured benefits (from real dogfooding, not napkin math)
+
+One production session — 5-round plain-language refactor on
+[`awesome-agentic-ai-zh`](https://github.com/WenyuChiou/awesome-agentic-ai-zh)
+(2026-05-14, 9 tasks across 5 rounds, all measured):
+
+| Round | Task type | Main-session tokens | Without skills (inline) | Saving |
+|---|---|---|---|---|
+| R1 | Term definitions (Claude judgment) | ~6.5k | ~6.5k | **1×** (no help) |
+| R2 | Mechanical sweeps (Codex × 2 parallel) | ~5k | ~37k | **~7×** |
+| R3 | Pedagogical rewrites (Claude judgment) | ~3k | ~15-20k | **~5×** |
+| **R4 + R5** | **Mirror sync (Gemini) + acceptance gate (subagent)** | **~6k** | **~80-100k** | **~13-16×** ⭐ |
+| R6 | GitHub triage (gh CLI direct) | ~0.5k | ~0.5k | **1×** (skill not relevant) |
+| **TOTAL** | | **~21k** | **~140-165k** | **~7-8× average** |
+
+**Plus 2 drift incidents caught** (F11 over-applied meta-doc sweep,
+F12 unrequested attribution injection) that would have shipped broken
+without the reviewer-rejection pattern. **Non-quantifiable but
+critical**.
+
+**Where the savings come from**:
+- Multi-locale mirror sync (Gemini delegate): peak 13-16× saving
+- Codex parallel mechanical sweeps: 7× saving + drift catch
+- Subagent acceptance gate: replaces hand-rolled `grep` × N with structured verdict
+- **Spec-as-code presets** (multi-locale-mirror-sync / catalog-entry-add /
+  fact-check-frontier-models) — eliminate hand-rolling verification
+
+**Where the skills do NOT help** (honest):
+- Pure judgment work (rewriting prose for clarity, architectural decisions)
+- Single-file fixes
+- Real-time exploration / ideation rounds
+
+**Full report**: [`docs/measured-benefits.md`](docs/measured-benefits.md)
+
+---
+
 ## Install
 
 Prerequisite: Claude Code (https://claude.ai/code). Recommended (but
