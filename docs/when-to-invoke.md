@@ -8,11 +8,49 @@ This doc closes a recurring failure mode — operators skip the skill / preset b
 
 ---
 
+## Prerequisite stack (you need ALL of these)
+
+`agent-collab-skills` is the **orchestration layer** above per-tool delegation. It does **not** replace the delegation skills — it coordinates them when ≥2 are running in one round.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  agent-collab-skills (this repo)                            │
+│  — orchestration: task-splitter, output-reconciler,         │
+│    acceptance-gate, debate, shared-memory, etc.             │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ delegates work TO
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  codex-delegate     +     gemini-delegate-skill             │
+│  (sister repos)                                             │
+│  — per-tool: writes brief, invokes CLI, captures result     │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ shell out TO
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  codex CLI    +    gemini CLI    (must be on PATH)          │
+│  — actual binaries that hit OpenAI / Google APIs            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Install everything before applying any rule below**:
+
+| Layer | Repo / Skill | What it does |
+|---|---|---|
+| **Orchestration** | [`agent-collab-skills`](https://github.com/WenyuChiou/agent-collab-skills) (this) | Decides splitter / preset / debate / reconciler invocations |
+| **Codex delegation** | [`codex-delegate`](https://github.com/WenyuChiou/codex-delegate) | Writes `.ai/codex_task_*.md` brief + invokes `codex exec` + captures result.jsonl |
+| **Gemini delegation** | [`gemini-delegate-skill`](https://github.com/WenyuChiou/gemini-delegate-skill) | Writes `.ai/gemini_task_*.md` brief + uses `cat task.md \| gemini --yolo -p ...` stdin pipe (F1 workaround) |
+| **CLI binaries** | `codex` + `gemini` on PATH | npm-installed OpenAI Codex CLI + Google Gemini CLI |
+
+→ The rules below only make sense if **all three** layers are installed.
+
+---
+
 ## TL;DR — the 4 decision rules
 
 | If the round has... | Do this | Why |
 |---|---|---|
-| **1 delegate run** (1× codex / 1× gemini) | Direct delegate skill (`codex-delegate` or `gemini-delegate`) | splitter overhead > value |
+| **1 delegate run** (1× codex / 1× gemini) | Direct delegate skill ([`codex-delegate`](https://github.com/WenyuChiou/codex-delegate) or [`gemini-delegate-skill`](https://github.com/WenyuChiou/gemini-delegate-skill)) | splitter overhead > value |
 | **≥2 parallel delegate runs producing files** | `agent-task-splitter` first | prevents drift between parallel outputs |
 | **Diff touches ≥2 locale variants** (`.md` + `.zh-Hans.md` + `.en.md`) | `agent-acceptance-gate --preset=multi-locale-mirror-sync` before commit | mirror divergence is the most common drift class |
 | **Diff adds catalog entries** (project listing, framework comparison table) | `agent-acceptance-gate --preset=catalog-entry-add` before commit | catalog drift is hard to spot manually |
@@ -164,6 +202,19 @@ When ≥2 delegate runs in one round produce shipping output, OR diffs touch
 ≥2 locale variants / catalogs / frontier-model claims, the following skills
 and presets are **mandatory** — not "consider", not "if you remember", but
 required-before-commit.
+
+### Prerequisites (install all three)
+
+These rules assume your environment has the 3-layer stack installed:
+
+1. **Per-tool delegation skills** (sister marketplaces):
+   - [`codex-delegate`](https://github.com/WenyuChiou/codex-delegate) — writes brief + invokes `codex exec` + captures result
+   - [`gemini-delegate-skill`](https://github.com/WenyuChiou/gemini-delegate-skill) — same, uses `cat task.md | gemini --yolo -p ...` stdin pipe
+2. **Orchestration layer** (this rule set assumes you have it):
+   - [`agent-collab-skills`](https://github.com/WenyuChiou/agent-collab-skills) — `agent-task-splitter`, `agent-acceptance-gate`, etc.
+3. **CLI binaries on PATH**: `codex` (npm: `@openai/codex`) + `gemini` (Google's CLI)
+
+Without all three layers, the rules below are not enforceable — `agent-task-splitter` writes briefs that `codex-delegate` / `gemini-delegate` then execute. They are layered, not interchangeable.
 
 ### Mandatory invocations
 
