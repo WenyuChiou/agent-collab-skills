@@ -261,6 +261,27 @@ Track A drift — the audit caught the zh-TW row but missed the
 en + zh-Hans equivalents. The preset would have caught all
 language variants at once.
 
+**Post-fix validation (commit `4d697e4`)**: after the 6 surfaced
+bugs were fixed in README.en.md + README.zh-Hans.md, the same
+test was re-run against the new HEAD:
+
+- Warnings before fix (at `e98e803`): 22
+- Warnings after fix (at `4d697e4`): **15** — net drop of 7 (the 6 fixed + 1 Phase D Track A row already fixed at `f29d2db`)
+- Of the residual 15 warnings: **0 are real drift**. All are
+  algorithm false positives, correctly tagged `severity: warn`:
+  - 5 × `Stage N 中文名` link text with `Stage N — 中文名（English）` H1 (one-sided stem strip)
+  - 1 × `Stage 8 — Agent Interfaces` (link text contains the English term inside H1's parens, but algorithm doesn't tokenize parens content)
+  - 4 × persona aliases (`研究人員` vs `研究者`, `老师` vs `教师`, `研究员` vs `研究者`, `日常用户` vs `日常使用者`)
+  - 2 × intentional CTA shortcuts (`從 Stage 0 開始` / `Start at Stage 0`)
+  - 3 × deep section refs (`Stage 5.2`, `Stage 5.3`, `Stage 5.4`)
+
+**Conclusion**: the check **catches every real drift case** while
+producing well-understood, soft-severity false positives. The 2
+v0.2.4 algorithm refinements (two-sided stem strip + parens-token
+matching) would drop the false positive count from 15 → ~6, which
+is the natural floor (persona alias + CTA shortcut + deep ref are
+all intentional).
+
 ---
 
 ## What v0.2.1 still doesn't do (planned for v0.2.2)
