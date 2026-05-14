@@ -208,6 +208,59 @@ Two fixes shipped from this dogfood:
 The pre-commit hook is the actual fix. Documentation alone didn't
 hold. See F14 in `observed-failure-modes.md`.
 
+### v0.2.3 retrospective test — `cross_document_link_text_parity` validated against real history
+
+**Test date**: 2026-05-14, same day as v0.2.3 ship.
+
+A standalone Python implementation of the new
+`cross_document_link_text_parity` check (see
+`.ai/v0.2.3-preset-test/test_cross_document_link_text_parity.py` in
+this repo) was run against `awesome-agentic-ai-zh` at commit
+`4a60742` — the Phase D commit **before** the README Track A fix.
+
+**What it should catch**: the 3 stale link texts in README.md Track A
+table (`CLI Agent 入門 + 選擇` etc.) that point at track files whose H1
+titles already moved to the new bilingual format.
+
+**What it actually caught (zh-TW + en + zh-Hans READMEs combined): 23 warnings**, of which:
+
+| Category | Count | Example |
+|---|---|---|
+| **Real drift the audit knew about** | 3 | README.md Track A: `CLI Agent 入門 + 選擇` vs new `選一個 CLI Agent，開始用它做事（CLI Agent Intro & Selection）` |
+| **Real drift the audit DID NOT know about** | 6+ | README.en.md: `LLM Basics` vs en H1 `LLM Fundamentals`; `Memory · RAG · Advanced` vs en H1 `Context Engineering: RAG and Memory`. README.zh-Hans.md: 4 similar stale link texts. |
+| False positive — semantic alias (CTA links) | 2 | `從 Stage 0 開始` / `Start at Stage 0` linking to Foundations H1 |
+| False positive — partial-match algorithm too strict | ~10 | Link text contains English term inside parens (`Agent Interfaces`) but stripping `Stage N — ` prefix only from H1 misses the intersection |
+| **Net real bugs surfaced** | **9+** | |
+
+**Key finding**: the check **works conceptually** — it catches all 3
+audit-known cases plus surfaces ≥ 6 bugs the human audit missed.
+The matching algorithm needs 2 refinements for production:
+
+1. **Normalize both sides**: strip `Stage N — ` / `AN — ` prefix from
+   the link text as well as from the H1, not just from H1
+2. **Match on the English term inside parens** as a separate token
+   (so `Agent Interfaces` in link text matches H1's
+   `Agent 操作介面（Agent Interfaces）：...`)
+
+These refinements are filed as v0.2.4 backlog. For v0.2.3 the check
+ships with `severity: warn` (soft fail), which correctly reflects
+the algorithm maturity — operators get the signal but the gate does
+not block on it.
+
+**Bug list surfaced for downstream fix in `awesome-agentic-ai-zh`**:
+
+- README.en.md L102: `LLM Basics` (stale) → target en H1 `LLM Fundamentals`
+- README.en.md L124: `Memory · RAG · Advanced` (stale) → target en H1 `Context Engineering: RAG and Memory`
+- README.zh-Hans.md L88: `LLM 入门` (stale) → target zh-Hans H1 `LLM 基础（LLM Basics）`
+- README.zh-Hans.md L95: `CLI Agent 入门 + 选择` (stale) → target zh-Hans H1 `选一个 CLI Agent，开始用它做事（CLI Agent Intro & Selection）`
+- README.zh-Hans.md L110: `Memory · RAG · 进阶` (stale) → target zh-Hans H1 `上下文管理（Context Engineering）：RAG 与 Memory`
+- README.zh-Hans.md L111: `Multi-Agent · 进阶应用` (stale) → target zh-Hans H1 `多 Agent 系统与稳定运作（Multi-Agent & Production）`
+
+These are the cross-language echoes of the original Phase D
+Track A drift — the audit caught the zh-TW row but missed the
+en + zh-Hans equivalents. The preset would have caught all
+language variants at once.
+
 ---
 
 ## What v0.2.1 still doesn't do (planned for v0.2.2)
