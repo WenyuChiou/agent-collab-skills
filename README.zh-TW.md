@@ -23,35 +23,15 @@ session 記住決策、怎麼把好幾個 agent 的成果合併進主分支。
 
 ---
 
-## ⏱ 實測效益（真實 dogfood、不是 napkin math）
+## ⏱ 這套 skills 最派上用場的場景
 
-一個 production session 實測——[`awesome-agentic-ai-zh`](https://github.com/WenyuChiou/awesome-agentic-ai-zh)
-6-round plain-language refactor（2026-05-14、9 個 task 跨 6 個 round）。主 session token 是真實 byte-proxy 量測；control 欄是「不用 skills 時」的 baseline 估計值（見 [methodology](docs/measured-benefits.md#measurement-methodology)）。
+三個明顯有效率的使用情境：
 
-| Round | 任務類型 | 主 session token（實測）| Control 估計 | 省幾倍 |
-|---|---|---|---|---|
-| R1 | 名詞定義（Claude inline 判斷型工作）| ~6.5k | ~6.5k | **1×**（skill 沒幫上）|
-| R2 | 機械式 sweep（Codex × 2 parallel）| ~5k | ~37k | **~7×** + drift catch |
-| R3 | 教學導向重寫（Claude inline 判斷型工作）| ~3k | ~6k | **~1×**（skill-neutral）|
-| **R4** | **Mirror sync（Gemini delegate、8 個檔案）**| **~4k** | **~70-90k** | **~17-22×** ⭐ |
-| R5 | Acceptance gate（subagent 結構化 verdict）| ~2k | ~10k | **~5×** |
-| R6 | GitHub triage（gh CLI 直接）| ~0.5k | ~0.5k | **1×**（skill 不相關）|
-| **TOTAL** | | **~21k** | **~130-150k** | **平均 ~6-7×** |
+- **多語 mirror 同步**——把大量讀寫交給 delegate、主 session 只看 result 摘要、是目前用得最有感的地方。
+- **平行機械式 sweep**——批次取代 / 重新命名 / 重構交給 Codex、加 reviewer pattern 在 merge 前抓 drift。
+- **Commit 前的 acceptance gate**——subagent 結構化 verdict 取代手刻 `grep × N`、YAML preset 抓到過人工 audit 漏掉的真實 drift。
 
-**另外抓到 2 個偏移事件**（F11 過度套用 meta-doc sweep、F12 沒被請求就加 attribution）——review 步驟的 token 成本**已包含在主 session 數字裡**、所以這不是「免費 bonus」、而是「同樣預算下最高 leverage 的用法」。沒這個 reviewer-reject pattern、bug 直接 ship。
-
-**省 token 主要來自**：
-- **Multi-locale mirror sync**（R4、Gemini delegate）：peak 17-22× — delegate 在主 session 之外讀寫 250 KB、主 session 只看 ≤250 字的 `result.md`
-- **Codex parallel 機械 sweep**（R2）：7× + 抓到 4 個偏移檔案 reject 掉
-- **Subagent acceptance gate**（R5）：取代手刻 `grep × N` 命令、改成結構化 verdict（5× saving）
-- **Spec-as-code presets**（`multi-locale-mirror-sync.yml` / `catalog-entry-add.yml` / `fact-check-frontier-models.yml`）——預定義的檢查取代臨時手寫
-
-**沒幫上的場景**（誠實講）：
-- 純判斷型工作（為了易讀重寫文章、架構決策）—— R1、R3
-- 單檔小修——直接 Edit 工具就好
-- 即時探索 / ideation 階段
-
-**完整報告**：[`docs/measured-benefits.md`](docs/measured-benefits.md)
+想看 token 量測與事件紀錄可翻 [`docs/measured-benefits.md`](docs/measured-benefits.md)，但 README 的重點就是上面這三件事。
 
 ---
 
