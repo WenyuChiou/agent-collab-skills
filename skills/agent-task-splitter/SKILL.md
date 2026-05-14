@@ -29,9 +29,9 @@ costs token + drift in two specific ways:
 
 | Setup | Main session tokens | Notes |
 |---|---|---|
-| **With splitter** (R2 + R4 combined: 2 parallel Codex + 1 mirror sync Gemini) | ~9k tokens | Splitter wrote 5 KB of plan.yml + briefs; main session read only structured summaries |
-| **Hand-rolled equivalent** (estimated counterfactual) | ~50-80k tokens | Operator inlines all context per brief, parses each agent's raw stdout, reconciles by hand |
-| **Saving** | **~6-9×** | Plus the splitter's disjoint-scope partition prevented F11-class drift |
+| **With splitter** (R2 + R4 combined: 2 parallel Codex + 1 mirror sync Gemini) | ~9k tokens (R2 ~5k + R4 ~4k, measured) | Splitter wrote 5 KB of plan.yml + briefs; main session read only structured summaries |
+| **Hand-rolled equivalent** (estimated counterfactual) | ~107-127k tokens (R2 control ~37k + R4 control ~70-90k) | Operator inlines all context per brief, parses each agent's raw stdout, reconciles by hand |
+| **Saving** | **~12-14×** combined (R2 ~7× + R4 ~17-22× per round) | Plus the splitter's disjoint-scope partition prevented F11-class drift |
 
 The skill earns its keep when ≥ 2 subtasks go to different agents (or
 same agent in parallel). For 1-shot delegation, call the delegate skill
@@ -319,7 +319,7 @@ Path: `.ai/codex_task_<NNN>_<slug>.md`. `<NNN>` is the zero-padded
 >
 > ```bash
 > # Preferred: structured result via -o flag (bounded, machine-readable)
-> codex exec --full-auto -m gpt-5.4 \
+> codex exec --sandbox workspace-write -m gpt-5.5 \
 >   -o .ai/codex_result_<NNN>_<slug>.jsonl \
 >   "Read .ai/codex_task_<NNN>_<slug>.md and execute all instructions inside." \
 >   < /dev/null
@@ -328,7 +328,7 @@ Path: `.ai/codex_task_<NNN>_<slug>.md`. `<NNN>` is the zero-padded
 > # WITHOUT this cap, codex retries + verbose tool calls can grow logs to
 > # multi-GB (real incident: 7 GB in .ai/ on 2026-04-17). Never use bare
 > # `> file.log 2>&1`.
-> codex exec --full-auto -m gpt-5.4 \
+> codex exec --sandbox workspace-write -m gpt-5.5 \
 >   "Read .ai/codex_task_<NNN>_<slug>.md and execute all instructions inside." \
 >   < /dev/null 2>&1 | head -c 10485760 > .ai/codex_log_<NNN>_<slug>.txt
 > ```
@@ -523,7 +523,7 @@ Next steps:
     --log-file .ai/codex_log_001_<slug1>.txt
 
   # Option B — direct codex exec with -o for structured result (preferred over raw stdout):
-  codex exec --full-auto -m gpt-5.4 \
+  codex exec --sandbox workspace-write -m gpt-5.5 \
     -o .ai/codex_result_001_<slug1>.jsonl \
     "Read .ai/codex_task_001_<slug1>.md and execute all instructions inside." \
     < /dev/null
