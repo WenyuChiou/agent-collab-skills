@@ -6,9 +6,9 @@
 
 ![Pipeline overview: agent-task-splitter → codex-delegate / gemini-delegate / claude-in-session → agent-output-reconciler → agent-acceptance-gate, with agent-shared-memory and agent-debate as cross-cutting chips](docs/pipeline-overview.png)
 
-> 5 Claude Code skills for multi-agent collaboration — task splitter,
-> output reconciler, adversarial debate, shared memory, acceptance
-> gate. Designed to compose with [`codex-delegate`](https://github.com/WenyuChiou/codex-delegate)
+> 6 Claude Code skills for context-safe multi-agent collaboration —
+> task splitter, context budget, output reconciler, adversarial debate,
+> shared memory, acceptance gate. Designed to compose with [`codex-delegate`](https://github.com/WenyuChiou/codex-delegate)
 > and [`gemini-delegate-skill`](https://github.com/WenyuChiou/gemini-delegate-skill).
 
 > 📚 Part of the [**agentic AI learning roadmap**](https://github.com/WenyuChiou/awesome-agentic-ai-zh) — a 7-stage curated path for building agentic AI, multilingual (zh-TW · zh-CN · English). Multi-agent orchestration is covered in Stage 7.
@@ -35,7 +35,7 @@ claude plugin marketplace add WenyuChiou/agent-collab-skills
 claude plugin install agent-collab-workspace@agent-collab-skills
 ```
 
-This installs all 5 skills as one bundle. Verify:
+This installs all 6 skills as one bundle. Verify:
 
 ```bash
 claude plugin list
@@ -62,11 +62,12 @@ Otherwise leave `CLAUDE.md` alone — the skills are designed to work via descri
 
 ---
 
-## The 5 skills
+## The 6 skills
 
 | Skill | Triggered when you say... | Writes to `.coord/` |
 |---|---|---|
 | **`agent-task-splitter`** | "Split this task across Claude / Codex / Gemini" / "Plan a multi-agent run for X" | `plan.yml` + `.ai/codex_task_*.md` / `.ai/gemini_task_*.md` |
+| **`agent-context-budget`** | "Context is getting too large" / "Prepare a fresh session primer" / "Bound this Codex + Gemini run" | `context_<NNN>.md` + `session_primer.md` |
 | **`agent-output-reconciler`** | "Reconcile these N agent outputs" / "Did Codex and Gemini agree?" | `reconciliation_<NNN>.md` |
 | **`agent-debate`** | "Have Claude and Codex debate this design" / "Adversarial review on X" | `debate_<topic>.md` |
 | **`agent-shared-memory`** | "Update shared memory with X" / "What have agents decided so far?" | `memory.yml` |
@@ -83,6 +84,8 @@ trace back to the run that produced them.
 goal
   ↓ agent-task-splitter
 .coord/plan.yml + .ai/codex_task_*.md / .ai/gemini_task_*.md
+  ↓ agent-context-budget
+.coord/context_<NNN>.md + .coord/session_primer.md
   ↓ codex-delegate / gemini-delegate (existing)
 .ai/codex_log_*.txt + .result.json + codex_result_*.md
   ↓ agent-output-reconciler
@@ -91,9 +94,12 @@ goal
 .coord/acceptance_<NNN>.md → merge or retry
 ```
 
-`agent-shared-memory` runs alongside the whole pipeline — gets
-updated at each step. `agent-debate` is invoked on consequential
-decisions (architecture, design choice), not in the main loop.
+`agent-shared-memory` runs alongside the whole pipeline and stores
+accepted decisions, open questions, artifacts, and session outcomes.
+`agent-context-budget` keeps handoffs bounded so the main session does
+not absorb raw logs or full memory. `agent-debate` is invoked on
+consequential decisions (architecture, design choice), not in the main
+loop.
 
 See [docs/example-walkthrough.md](docs/example-walkthrough.md) for
 a worked example with real `.coord/` sample artifacts produced by
@@ -102,24 +108,27 @@ invocations.
 
 ---
 
-## Why these 5 specifically
+## Why these 6 specifically
 
 The pain points each one solves, in order:
 
 1. **Task splitting is mental load.** You currently classify "is
    this Codex-shaped or Gemini-shaped?" in your head every time. The
    splitter encodes the heuristics.
-2. **Multi-agent output is hard to compare.** When 3 Codex jobs come
+2. **Context explodes during large runs.** The context-budget skill
+   turns memory, logs, and agent outputs into bounded packets and a
+   session primer.
+3. **Multi-agent output is hard to compare.** When 3 Codex jobs come
    back in parallel, you read 3 result.json files and merge them
    manually. The reconciler does the diff.
-3. **Consensus-driven LLM output hides trade-offs.** When you ask one
+4. **Consensus-driven LLM output hides trade-offs.** When you ask one
    agent for a design, you get one answer. The debate skill forces
    two agents to argue opposing positions.
-4. **Agent sessions don't share memory.** Codex resume works
+5. **Agent sessions don't share memory.** Codex resume works
    per-session; nothing persists across Claude session A → Codex
    session B → Gemini session C. Shared-memory makes `.coord/memory.yml`
    the cross-session blackboard.
-5. **No standardized merge gate.** You currently eyeball the diff +
+6. **No standardized merge gate.** You currently eyeball the diff +
    run `pytest` manually. The gate runs all `success_criteria` from
    `plan.yml` + cost budget + cross-agent consistency check.
 
@@ -134,6 +143,9 @@ The pain points each one solves, in order:
 - [`academic-writing-skills`](https://github.com/WenyuChiou/academic-writing-skills)
   — acceptance gate optionally calls its banned-word audit on prose
   changes.
+- [`agentmemory`](https://github.com/rohitg00/agentmemory) —
+  optional recall cache only. `.coord/memory.yml` remains canonical;
+  see [docs/agentmemory-integration.md](docs/agentmemory-integration.md).
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: agent-debate
-description: For consequential decisions (architecture choice, design trade-off, research design, business strategy), force two agents (typically Codex and Gemini, sometimes Claude vs another) to argue opposing positions for N rounds, then synthesize agreed facts vs contested points and recommend a resolution. Writes `.coord/debate_<topic>.md`. Use when the user asks "have Claude and Codex debate this", "adversarial review on X", "get a second opinion via debate", "I'm not sure about this design choice — make the agents argue it out".
+description: Use when a consequential decision needs adversarial review, opposing agent arguments, a second opinion via debate, or explicit trade-off analysis before implementation.
 ---
 
 # agent-debate
@@ -45,6 +45,9 @@ User must provide:
    skill picks based on agent strengths (see below).
 3. **Optional**: number of rounds. Default 2 (each agent gets 2
    turns). More than 3 rarely adds signal.
+4. **Optional**: context policy. Default debate turns are 200-400
+   words, final synthesis is <= 250 words, and only the accepted
+   decision is eligible for shared memory.
 
 ## Workflow
 
@@ -173,6 +176,11 @@ the full debate transcript and writes the synthesis at the bottom:
 - **What would change my mind:** <falsifiable condition>.
 ```
 
+Keep the synthesis under 250 words unless the user explicitly asks
+for a longer decision record. If the recommendation is accepted,
+promote only the final decision and rationale to `.coord/memory.yml`;
+do not promote the full debate transcript.
+
 ### 7. Hand off
 
 ```
@@ -213,7 +221,61 @@ the full debate transcript and writes the synthesis at the bottom:
 - **Don't update `.coord/memory.yml` automatically.** The
   recommendation goes there only if the user accepts it. Use
   `agent-shared-memory` separately to log the decision.
+- **Don't let debate transcripts become memory.** Store the transcript
+  as `.coord/debate_<topic>.md`; memory gets only the accepted
+  decision, if any.
 
+## Hard caps (enforced by `agent-acceptance-gate` when debate is wired into a plan round)
+
+If the debate is referenced from `.coord/plan.yml` (i.e., recorded as a
+formal task with `agent: claude` or similar), the acceptance gate
+checks these caps against `.coord/debate_<topic>.md`:
+
+| Field | Cap |
+|---|---|
+| Per-turn argument (Pro / Con) | 400 words |
+| Total rounds | 3 (override requires explicit user opt-in in plan.yml `debate_rounds`) |
+| Final synthesis section | 250 words |
+| Total debate file size | 8 KB (~ 1200 words across all rounds + synthesis) |
+
+If the debate is invoked ad-hoc (no plan.yml round), these caps are
+soft guidance — Claude should still respect them but no automated
+gate runs. **For consequential decisions, always wire the debate
+into a formal round** so the gate enforces the cap.
+
+When caps are exceeded:
+- Pro/Con turn over 400 words → reject the turn, ask the agent to
+  compress to ≤400 before continuing.
+- Synthesis over 250 words → rewrite to ≤250 before promoting any
+  decision to memory.
+- Total file over 8 KB → debate is no longer auditable in a glance;
+  recommend splitting into sub-debates per sub-decision.
+
+## Subagent review (keep main session lean)
+
+**When**: Debate enters round 3+, OR `.coord/debate_<topic>.md`
+exceeds 4 KB.
+
+**Why**: After 2-3 rounds, the full transcript is heavy. The judge
+synthesis is where the user actually consumes value. A subagent can
+read the entire transcript and return only the synthesis + verdict,
+so the main session never holds the full Pro/Con turns.
+
+**Pattern**:
+
+```
+Spawn `general-purpose` subagent (read-only) with:
+  - Read .coord/debate_<topic>.md (entire transcript)
+  - Verify cap compliance: each turn ≤ 400 words, total ≤ 8 KB,
+    rounds ≤ 3 (or plan-declared override)
+  - Compose synthesis (≤ 250 words) covering: framing, strongest
+    Pro argument, strongest Con argument, recommended decision,
+    confidence level, conditions to revisit
+  - Return: synthesis text + cap-violation flags
+
+Main session reads only the synthesis; if user accepts, `agent-shared-memory`
+promotes the decision (NOT the transcript) to `.coord/memory.yml`.
+```
 
 ## Commit Boundary
 

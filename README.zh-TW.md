@@ -6,8 +6,9 @@
 
 ![Pipeline 概覽：agent-task-splitter → codex-delegate / gemini-delegate / claude-in-session → agent-output-reconciler → agent-acceptance-gate，agent-shared-memory 與 agent-debate 為跨層 chip](docs/pipeline-overview.png)
 
-> 5 個 Claude Code skill，專門處理多代理協作 — task splitter、output
-> reconciler、adversarial debate、shared memory、acceptance gate。
+> 6 個 Claude Code skill，專門處理 context-safe 多代理協作 — task
+> splitter、context budget、output reconciler、adversarial debate、
+> shared memory、acceptance gate。
 > 設計上與 [`codex-delegate`](https://github.com/WenyuChiou/codex-delegate)
 > 和 [`gemini-delegate-skill`](https://github.com/WenyuChiou/gemini-delegate-skill)
 > 互補組合。
@@ -24,7 +25,7 @@ session 記住決策、怎麼把好幾個 agent 的成果合併進主分支。
 
 ## 安裝
 
-前置：Claude Code（https://claude.ai/code） 建議（非必要）已透過
+前置：Claude Code (https://claude.ai/code)。建議（非必要）已透過
 `ai-research-skills` 安裝 `codex-delegate` 與 `gemini-delegate`，並把
 對應的 CLI binary 放到 PATH 上。
 
@@ -33,7 +34,7 @@ claude plugin marketplace add WenyuChiou/agent-collab-skills
 claude plugin install agent-collab-workspace@agent-collab-skills
 ```
 
-這個 bundle 會一次裝齊 5 個 skill。確認：
+這個 bundle 會一次裝齊 6 個 skill。確認：
 
 ```bash
 claude plugin list
@@ -49,7 +50,7 @@ pwsh scripts/install-all.ps1       # Windows PowerShell
 
 ### 需要改 `CLAUDE.md` 嗎？
 
-**不用**。Claude Code 內建的 skill matching 會讀每個 `SKILL.md` 的 `description` 欄位、自動把使用者語句對到對應的 skill。Plugin 安裝是唯一一步 — 你說「把這個切給 Claude、Codex、Gemini」就會自動觸發 `agent-task-splitter`，不需要額外設定。
+**不用**。Claude Code 內建的 skill matching 會讀每個 `SKILL.md` 的 `description` 欄位、自動把使用者語句對到對應的 skill。安裝 plugin 就是全部的設定步驟 — 當你說「把這個切給 Claude、Codex、Gemini」，系統會自動觸發 `agent-task-splitter`，不需額外設定。
 
 以下兩種情況你*可以選擇*顯式把規則寫進 `~/.claude/CLAUDE.md`：
 
@@ -60,18 +61,19 @@ pwsh scripts/install-all.ps1       # Windows PowerShell
 
 ---
 
-## 5 個 Skill
+## 6 個 Skill
 
 | Skill | 觸發語句 | 寫到 `.coord/` |
 |---|---|---|
 | **`agent-task-splitter`** | 「把這個任務分給 Claude / Codex / Gemini」/「為 X 規劃多代理執行」 | `plan.yml` + `.ai/codex_task_*.md` / `.ai/gemini_task_*.md` |
+| **`agent-context-budget`** | 「context 快爆了」/「準備 fresh session primer」/「限制 Codex + Gemini 上下文」 | `context_<NNN>.md` + `session_primer.md` |
 | **`agent-output-reconciler`** | 「對帳這 N 份代理輸出」/「Codex 跟 Gemini 的結果一致嗎？」 | `reconciliation_<NNN>.md` |
 | **`agent-debate`** | 「讓 Claude 跟 Codex 辯論這個設計」/「對 X 做對抗式評審」 | `debate_<topic>.md` |
 | **`agent-shared-memory`** | 「把 X 寫進共享記憶」/「目前所有 agent 對這專案做過哪些決策？」 | `memory.yml` |
 | **`agent-acceptance-gate`** | 「跑 acceptance gate」/「合併前的預檢」 | `acceptance_<NNN>.md` |
 
-`<NNN>` 編號對應 `plan.yml` 裡的 `round` 欄位，方便把產物追溯回是哪一
-輪多代理執行所產出。
+`<NNN>` 編號對應 `plan.yml` 裡的 `round` 欄位，方便把產物追溯回對應
+的多代理執行輪次。
 
 ---
 
@@ -81,6 +83,8 @@ pwsh scripts/install-all.ps1       # Windows PowerShell
 goal
   ↓ agent-task-splitter
 .coord/plan.yml + .ai/codex_task_*.md / .ai/gemini_task_*.md
+  ↓ agent-context-budget
+.coord/context_<NNN>.md + .coord/session_primer.md
   ↓ codex-delegate / gemini-delegate（既有）
 .ai/codex_log_*.txt + .result.json + codex_result_*.md
   ↓ agent-output-reconciler
@@ -98,22 +102,24 @@ goal
 
 ---
 
-## 為什麼是這 5 個
+## 為什麼是這 6 個
 
 每一個解決的痛點，按順序：
 
 1. **任務切分很燒腦力。** 你現在每次都在腦中分類「這是 Codex 形狀的
    還是 Gemini 形狀的？」。Splitter 把這個 heuristic 編成可重用的
    skill。
-2. **多代理輸出很難對比。** 三個平行的 Codex job 跑回來，你打開三份
+2. **大型任務的 context 會爆。** context-budget skill 把 memory、
+   logs、agent outputs 壓成 bounded packet 和 session primer。
+3. **多代理輸出很難對比。** 三個平行的 Codex job 跑回來，你打開三份
    `result.json` 用人腦合併。Reconciler 替你做 diff。
-3. **共識式 LLM 輸出會藏起 trade-off。** 你問一個 agent 拿到一個答
+4. **共識式 LLM 輸出會掩蓋取捨。** 你問一個 agent 拿到一個答
    案；Debate skill 強制兩個 agent 站對立面，逼出真正的張力。
-4. **跨 session 沒有共享記憶。** Codex resume 只在自己 session 內有效；
+5. **跨 session 沒有共享記憶。** Codex resume 只在自己 session 內有效；
    Claude session A → Codex session B → Gemini session C 之間什麼都不
    會留下。Shared-memory 把 `.coord/memory.yml` 變成跨 session 的黑
    板。
-5. **沒有標準化的合併閘。** 你現在用肉眼看 diff 加手動跑 `pytest`。
+6. **沒有標準化的合併閘。** 你現在用肉眼看 diff 加手動跑 `pytest`。
    Gate 自動跑 `plan.yml` 裡所有 `success_criteria`、加成本預算、加
    跨代理一致性檢查。
 
@@ -127,6 +133,9 @@ goal
   — 同上。
 - [`academic-writing-skills`](https://github.com/WenyuChiou/academic-writing-skills)
   — 若散文有變動，acceptance gate 可選擇呼叫其 banned-word audit。
+- [`agentmemory`](https://github.com/rohitg00/agentmemory)
+  — 可選的 recall cache；`.coord/memory.yml` 仍是 canonical source。
+  詳見 [docs/agentmemory-integration.md](docs/agentmemory-integration.md)。
 
 ---
 
@@ -162,9 +171,9 @@ goal
 
 ## Status & License
 
-MIT。早期階段 — SKILL.md 的 prompt 骨架已完成並在真實工作流測試
-過；若有 skill 失靈或 `.coord/` schema 在你的使用場景中不適用，歡迎
-開 issue。
+MIT 授權。專案仍在早期階段 — SKILL.md 的 prompt 骨架已完成，並在
+真實工作流測試過；若有 skill 失靈或 `.coord/` schema 在你的使用場景
+中不適用，歡迎開 issue。
 
 歡迎貢獻 — 見 [CONTRIBUTING.md](CONTRIBUTING.md) 了解 catalog ↔
 delegate-skill 之間的互通規則。

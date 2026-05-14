@@ -9,7 +9,7 @@ contract that:
 3. Every skill named in the marketplace has a SKILL.md file present
    under skills/<name>/.
 4. Every SKILL.md has YAML frontmatter with name + description.
-5. The 5 expected skills are present and named consistently.
+5. The 6 expected skills are present and named consistently.
 """
 
 import json
@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_SKILLS = [
     "agent-task-splitter",
+    "agent-context-budget",
     "agent-output-reconciler",
     "agent-debate",
     "agent-shared-memory",
@@ -108,6 +109,10 @@ def test_skill_md_has_valid_frontmatter():
         assert re.search(r"^description:\s*\S+", frontmatter, re.MULTILINE), (
             f"{skill_name}: SKILL.md frontmatter missing 'description'"
         )
+        description = re.search(r"^description:\s*(.+)$", frontmatter, re.MULTILINE)
+        assert description and description.group(1).startswith("Use when"), (
+            f"{skill_name}: description must start with 'Use when'"
+        )
 
         # name in frontmatter should match directory name
         m = re.search(r"^name:\s*(\S+)\s*$", frontmatter, re.MULTILINE)
@@ -118,12 +123,25 @@ def test_skill_md_has_valid_frontmatter():
         )
 
 
-def test_readme_lists_all_5_skills():
-    """README must mention all 5 skills by name so users searching
+def test_readme_lists_all_6_skills():
+    """README must mention all 6 skills by name so users searching
     for a particular capability find their way in."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     for skill_name in EXPECTED_SKILLS:
         assert skill_name in readme, f"README missing reference to {skill_name}"
+
+
+def test_plugin_versions_bumped_for_context_policy_release():
+    """Adding agent-context-budget and context_policy is a public
+    interface change, so plugin metadata should advertise 0.2.0."""
+    plugin = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    marketplace = json.loads(
+        (ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
+    )
+
+    assert plugin["version"] == "0.2.0"
+    assert marketplace["metadata"]["version"] == "0.2.0"
+    assert marketplace["plugins"][0]["version"] == "0.2.0"
 
 
 def test_install_scripts_present():

@@ -1,6 +1,6 @@
 ---
 name: agent-task-splitter
-description: Decompose a high-level goal into a DAG of subtasks, classify each by character (Codex / Gemini / Claude), and emit a `.coord/plan.yml` plus per-task `.ai/<agent>_task_<NNN>_<slug>.md` files in the format `codex-delegate` and `gemini-delegate-skill` consume. Use when the user asks to "split this task across agents", "plan a multi-agent run", "break this into parallel agent tasks", or "decompose this for Codex + Gemini". Stops short of running the agents — it produces task files ready for the delegate skills to invoke.
+description: Use when the user asks to split a goal across Claude, Codex, or Gemini; plan a multi-agent run; break work into parallel agent tasks; or decompose a large task that needs bounded context handoffs.
 ---
 
 # agent-task-splitter
@@ -49,6 +49,11 @@ You may also read existing project context if relevant:
   `agent-shared-memory` has run before).
 - `.research/project_manifest.yml` — research project context (if
   `research-context-compressor` from `ai-research-skills` has run).
+
+If the goal is large, cross-session, or likely to involve parallel
+Codex + Gemini work, use `agent-context-budget` before writing task
+files. It sets the bounded handoff policy that prevents context
+overflow.
 
 ## Workflow
 
@@ -136,6 +141,14 @@ goal: "Refactor the auth module into plugin-based architecture"
 budget:
   tokens: 200000          # optional, gate skill checks against this
   duration_min: 60        # optional advisory
+context_policy:
+  main_session_token_budget: 3000
+  task_packet_token_budget: 6000
+  result_summary_word_budget: 250
+  memory_digest_token_budget: 1200
+  log_tail_lines_on_error: 50
+  raw_log_policy: path-only
+  agentmemory: optional
 created_utc: "2026-04-28T09:00:00Z"
 tasks:
   - id: T1
@@ -217,6 +230,8 @@ Path: `.ai/codex_task_<NNN>_<slug>.md`. `<NNN>` is the zero-padded
 - Required tests: <test command from success_criteria>
 - Required result summary: write a concise summary to
   .ai/codex_result_<NNN>_<slug>.md
+- Summary limit: <= 250 words. Include changed files, tests run,
+  risks, and blockers. Do not paste raw logs.
 ```
 
 > **Critical**: `.ai/codex_result_<NNN>_<slug>.md` MUST appear in
@@ -230,13 +245,24 @@ Path: `.ai/codex_task_<NNN>_<slug>.md`. `<NNN>` is the zero-padded
 > "Reading additional input from stdin..." indefinitely. Pattern:
 >
 > ```bash
+> # Preferred: structured result via -o flag (bounded, machine-readable)
+> codex exec --full-auto -m gpt-5.4 \
+>   -o .ai/codex_result_<NNN>_<slug>.jsonl \
+>   "Read .ai/codex_task_<NNN>_<slug>.md and execute all instructions inside." \
+>   < /dev/null
+>
+> # Fallback (only if you need raw stdout for diagnostics): MUST cap with head
+> # WITHOUT this cap, codex retries + verbose tool calls can grow logs to
+> # multi-GB (real incident: 7 GB in .ai/ on 2026-04-17). Never use bare
+> # `> file.log 2>&1`.
 > codex exec --full-auto -m gpt-5.4 \
 >   "Read .ai/codex_task_<NNN>_<slug>.md and execute all instructions inside." \
->   < /dev/null > .ai/codex_log_<NNN>_<slug>.txt 2>&1
+>   < /dev/null 2>&1 | head -c 10485760 > .ai/codex_log_<NNN>_<slug>.txt
 > ```
 >
-> The `codex-delegate` wrapper script (`run_codex.sh`) handles this
-> internally; only direct `codex exec` calls need the redirect.
+> The `codex-delegate` wrapper script (`run_codex.sh`) handles both
+> the `-o` flag and the 10 MB log cap internally; only direct
+> `codex exec` calls need to set these explicitly.
 
 #### 6b. Gemini task files (`agent: gemini`)
 
@@ -275,6 +301,8 @@ codex:
 - Required sentinel strings: <strings the gate will grep for>
 - Required result summary: write a concise summary to
   .ai/gemini_result_<NNN>_<slug>.md
+- Summary limit: <= 250 words. Include findings, files inspected,
+  risks, and blockers. Do not paste raw logs.
 - Claude will perform a final review (terminology, factual accuracy,
   schema adherence) before merging.
 ```
@@ -290,9 +318,10 @@ codex:
 > doesn't wait for input that won't come:
 >
 > ```bash
+> # Cap stdout at 10 MB to prevent runaway logs (same incident as codex).
 > TASK=$(cat .ai/gemini_task_<NNN>_<slug>.md)
 > gemini -p "$TASK" --yolo \
->   < /dev/null > .ai/gemini_log_<NNN>_<slug>.txt 2>&1
+>   < /dev/null 2>&1 | head -c 10485760 > .ai/gemini_log_<NNN>_<slug>.txt
 > ```
 >
 > When you produce the gemini task file, also produce a sibling
@@ -374,6 +403,9 @@ accumulate.
 - **Don't fabricate `success_criteria`.** If the user hasn't told
   you what success looks like and you can't infer it from context,
   ask before writing the plan.
+- **Don't create unbounded task packets.** Use `context_policy` and
+  keep each task file to the critical files, constraints, and result
+  contract. Link paths instead of pasting logs or long analysis.
 - **Don't classify everything as Codex.** Real multi-agent runs
   benefit from heterogeneity. If your plan has 5 tasks all routed
   to Codex, reconsider whether the goal needs a multi-agent split
@@ -396,6 +428,37 @@ earns its keep when:
 - A long-context read + a code edit are both required.
 - An adversarial review on the result would be valuable (then
   consider also queueing `agent-debate` after).
+
+## Subagent review (keep main session lean)
+
+**When**: ≥ 4 task files written in one round, OR ≥ 2 agents will run
+in parallel.
+
+**Why**: The main session that just wrote `plan.yml` + N task files
+already holds the entire plan in context. Asking it to also verify
+slug/agent/path consistency across all task files doubles the context
+cost. Delegate the verification to a subagent that returns only the
+verdict.
+
+**Pattern** (Claude Code's Task tool, or equivalent subagent harness):
+
+```
+Spawn `code-reviewer` subagent with this brief:
+- Read .coord/plan.yml + every .ai/{codex,gemini,claude}_task_<NNN>_*.md
+  generated this round
+- Verify: (a) each plan.yml task has a matching task file at correct
+  path; (b) slugs in filenames match plan.yml task.slug exactly;
+  (c) agent assignment matches; (d) no orphan task files from prior
+  rounds; (e) each task file's "Output file(s)" section references
+  the required result-summary path
+- Return: PASS / FAIL + ≤ 200-word verdict + list of any drifted
+  slug/agent/path mismatches
+
+Main session reads only the verdict; never re-reads the task files.
+```
+
+If subagent reports FAIL, run step 8 (re-plan) on the flagged tasks
+before invoking delegates.
 
 ## Output to user (final message format)
 

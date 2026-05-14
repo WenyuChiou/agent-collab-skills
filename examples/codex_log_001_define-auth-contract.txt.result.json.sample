@@ -1,0 +1,30 @@
+{
+  "_comment": "Example of the result.json file that codex-delegate writes after a run. Filename convention: <log-path>.result.json — so if the log is .ai/codex_log_001_<slug>.txt, this file is .ai/codex_log_001_<slug>.txt.result.json (double extension, by design). This is what agent-output-reconciler and agent-acceptance-gate read instead of the raw log.",
+
+  "task_id": "T1",
+  "slug": "define-auth-contract",
+  "agent": "codex",
+  "status": "ok",
+  "started_at": "2026-05-13T18:42:11Z",
+  "ended_at": "2026-05-13T18:47:33Z",
+  "duration_seconds": 322,
+  "tokens": {
+    "input": 18420,
+    "output": 4231,
+    "total": 22651
+  },
+  "files_changed": [
+    "docs/auth-contract.md",
+    "src/auth/types.ts"
+  ],
+  "output_file": ".ai/codex_result_001_define-auth-contract.md",
+  "log_file": ".ai/codex_log_001_define-auth-contract.txt",
+  "log_size_bytes": 184320,
+  "exit_code": 0,
+  "risks": [
+    "Auth contract diverges from existing OAuth2 token endpoint shape",
+    "Migration path for v1 clients not documented"
+  ],
+  "blockers": [],
+  "_notes": "Risks should each be ≤1 sentence. Long-form analysis belongs in output_file, not here."
+}

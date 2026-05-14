@@ -3,6 +3,14 @@ goal: "Refactor src/auth/ from monolithic legacy.py into a plugin-based architec
 budget:
   tokens: 180000
   duration_min: 75
+context_policy:
+  main_session_token_budget: 3000
+  task_packet_token_budget: 6000
+  result_summary_word_budget: 250
+  memory_digest_token_budget: 1200
+  log_tail_lines_on_error: 50
+  raw_log_policy: path-only
+  agentmemory: optional
 created_utc: "2026-04-28T04:00:00Z"
 tasks:
   - id: T1

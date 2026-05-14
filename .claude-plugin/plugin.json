@@ -1,7 +1,7 @@
 {
   "name": "agent-collab-workspace",
-  "description": "5 skills for multi-agent collaboration on the same task: task-splitter (decompose + classify subtasks), output-reconciler (synthesize N agent outputs), debate (adversarial review), shared-memory (persistent decisions across sessions), acceptance-gate (pre-merge checklist). Composes with codex-delegate + gemini-delegate via .ai/codex_task_*.md handoff format and reads result.json contracts.",
-  "version": "0.1.2",
+  "description": "6 skills for context-safe multi-agent collaboration: task-splitter, context-budget, output-reconciler, debate, shared-memory, and acceptance-gate. Composes with codex-delegate + gemini-delegate via bounded .ai task packets, .coord context policy, and result.json contracts.",
+  "version": "0.2.0",
   "author": {
     "name": "Wenyu Chiou"
   },
@@ -16,6 +16,8 @@
     "orchestration",
     "delegation",
     "agent-collaboration",
-    "task-decomposition"
+    "task-decomposition",
+    "context-budget",
+    "agent-memory"
   ]
 }

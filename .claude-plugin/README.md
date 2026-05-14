@@ -19,16 +19,16 @@ Default install scope is `user` (this OS account, all projects). Pass
 ## Plugin shipped
 
 The marketplace ships **one bundle plugin** — `agent-collab-workspace`
-— that auto-discovers 5 skills from this same repo's `skills/<name>/`
+— that auto-discovers 6 skills from this same repo's `skills/<name>/`
 layout:
 
 | Plugin | Source repo | Skills bundled |
 |---|---|---|
-| `agent-collab-workspace` | `WenyuChiou/agent-collab-skills` (this repo) | `agent-task-splitter`, `agent-output-reconciler`, `agent-debate`, `agent-shared-memory`, `agent-acceptance-gate` |
+| `agent-collab-workspace` | `WenyuChiou/agent-collab-skills` (this repo) | `agent-task-splitter`, `agent-context-budget`, `agent-output-reconciler`, `agent-debate`, `agent-shared-memory`, `agent-acceptance-gate` |
 
 Unlike `ai-research-skills` (which is a multi-source catalog of 5
 upstream repos), this marketplace is **single-source**: the marketplace
-config and the skill source live together in one repo. The 5 skills
+config and the skill source live together in one repo. The 6 skills
 are tightly coupled — they all read/write `.coord/` shared state — so
 a single bundle keeps the contract obvious.
 
@@ -55,12 +55,14 @@ skills will still help with planning + memory, but the
 
 ## The `.coord/` directory convention
 
-All 5 skills read/write a shared `.coord/` directory at your project
+All 6 skills read/write a shared `.coord/` directory at your project
 root. Files inside:
 
 | File | Owner | Purpose |
 |---|---|---|
 | `.coord/plan.yml` | `agent-task-splitter` | Task DAG + agent assignment |
+| `.coord/context_<NNN>.md` | `agent-context-budget` | Bounded context plan for the round |
+| `.coord/session_primer.md` | `agent-context-budget` | Fresh-session digest under the memory budget |
 | `.coord/memory.yml` | `agent-shared-memory` | Append-only audit trail of decisions, open questions, artifacts, agent sessions |
 | `.coord/reconciliation_<NNN>.md` | `agent-output-reconciler` | Per-round agreement / conflict report |
 | `.coord/debate_<topic>.md` | `agent-debate` | Adversarial decision transcript |

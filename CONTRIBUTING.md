@@ -1,7 +1,7 @@
 # Contributing
 
 This is a single-source marketplace + plugin bundle. Both the
-marketplace config (`.claude-plugin/marketplace.json`) and the 5 skills
+marketplace config (`.claude-plugin/marketplace.json`) and the 6 skills
 live in this one repo. Unlike `ai-research-skills` (5 upstream source
 repos coordinated via a catalog), here all changes go in one PR.
 
@@ -20,17 +20,19 @@ repos coordinated via a catalog), here all changes go in one PR.
 
 ## Interop contract — read before modifying
 
-The 5 skills share a contract. Breaking any part of it can silently
+The 6 skills share a contract. Breaking any part of it can silently
 corrupt multi-agent runs. The contract has 3 layers:
 
 ### 1. The `.coord/` directory schema
 
-All 5 skills read/write a shared `.coord/` directory at the user's
+All 6 skills read/write a shared `.coord/` directory at the user's
 project root. Files inside:
 
 | File | Owner skill | Format | Lifetime |
 |---|---|---|---|
 | `.coord/plan.yml` | `agent-task-splitter` | YAML, mutable | per-goal |
+| `.coord/context_<NNN>.md` | `agent-context-budget` | Markdown | per-round |
+| `.coord/session_primer.md` | `agent-context-budget` | Markdown | persistent |
 | `.coord/memory.yml` | `agent-shared-memory` | YAML, append-only | persistent |
 | `.coord/reconciliation_<NNN>.md` | `agent-output-reconciler` | Markdown | per-round |
 | `.coord/debate_<topic>.md` | `agent-debate` | Markdown | per-decision |
@@ -103,7 +105,7 @@ Tests guard:
    `description`).
 2. Reference files in `skills/<new-name>/references/` if needed.
 3. Bump version in `marketplace.json` and `plugin.json`.
-4. Update the table in `README.md` "The 5 skills" → "The 6 skills".
+4. Update the table in `README.md` and `README.zh-TW.md`.
 5. Update `tests/test_catalog.py` skill list.
 6. Run `python -m pytest tests/`.
 7. Smoke test:

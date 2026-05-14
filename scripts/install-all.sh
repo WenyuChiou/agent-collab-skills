@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # install-all.sh — install the agent-collab-workspace plugin from the
 # agent-collab-skills marketplace. The marketplace ships exactly one
-# bundle plugin that contains all 5 skills.
+# bundle plugin that contains all 6 skills.
 #
 # Usage:
 #   bash scripts/install-all.sh
@@ -37,8 +37,9 @@ echo ""
 echo "Done. Run 'claude plugin list' to confirm:"
 echo "  agent-collab-workspace@agent-collab-skills  Status: ✔ enabled"
 echo ""
-echo "5 skills are now available:"
+echo "6 skills are now available:"
 echo "  - agent-task-splitter"
+echo "  - agent-context-budget"
 echo "  - agent-output-reconciler"
 echo "  - agent-debate"
 echo "  - agent-shared-memory"

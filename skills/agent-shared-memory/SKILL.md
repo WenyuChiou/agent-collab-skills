@@ -1,6 +1,6 @@
 ---
 name: agent-shared-memory
-description: Maintain `.coord/memory.yml` as an append-only audit trail of decisions, open questions, artifacts, and agent sessions across multi-agent runs. Provides read mode (digest of "what's been decided + what's still open" for new agent sessions) and append mode (structured record of new decisions / questions / artifacts). Use when the user asks "update shared memory with X", "what have agents decided so far?", "initialize multi-agent shared memory", "what are the open questions blocking us?".
+description: Use when the user asks to update shared memory, initialize multi-agent memory, summarize decisions so far, identify open questions, or prepare a fresh session primer.
 ---
 
 # agent-shared-memory
@@ -37,6 +37,10 @@ Not for:
 `.coord/memory.yml` is specifically the **multi-agent coordination
 layer** — short-to-medium-term decisions made during a multi-agent
 work cycle.
+
+For large or cross-session work, pair this with `agent-context-budget`
+to produce `.coord/session_primer.md`. The primer is the bounded
+session input; `memory.yml` remains the append-only source.
 
 ## Schema
 
@@ -185,6 +189,29 @@ Append `.coord/` to `.gitignore` if not already (this is multi-agent
 state, not project source — versioning the YAML in git is the user's
 choice; default is gitignore + manual snapshot when valuable).
 
+### Promotion rules
+
+Only promote compact coordination facts:
+
+- Decisions: one-sentence `what` and one-sentence `why`.
+- Open questions: one sentence, blocker, suggested owner.
+- Artifacts: relative path plus one-line summary.
+- Agent sessions: agent, task ids, status, and result-summary path.
+
+Do not promote raw logs, full diffs, source code, long analysis, or
+secrets. If a detail is longer than a few sentences, write an artifact
+file and store only its path plus summary.
+
+### Optional agentmemory mirror
+
+If `agentmemory` is installed, mirror only memory candidates that pass
+the promotion rules. Treat agentmemory as a searchable cache:
+
+- `.coord/memory.yml` is canonical.
+- `agentmemory` recall may enrich `.coord/session_primer.md`.
+- Missing or failed agentmemory never blocks the workflow.
+- Acceptance decisions must never depend on vector recall alone.
+
 ## Output to user
 
 Read mode → digest as shown above.
@@ -213,6 +240,8 @@ Initialize:
 - **Don't read full agent log files.** This skill operates on
   summaries (the `output_summary` paths). The reconciler reads
   logs.
+- **Don't make memory a transcript.** Promote decisions, open
+  questions, artifact pointers, and session outcomes only.
 - **Don't store secrets.** Memory.yml is YAML in the project repo
   — assume any contributor can read it.
 - **Don't cross domains.** This is for **multi-agent coordination
@@ -223,6 +252,36 @@ Initialize:
   they have separate `.coord/memory.yml` files. This skill operates
   per-project.
 
+## Subagent review (keep main session lean)
+
+**When**: `.coord/memory.yml` exceeds 50 entries OR 30 KB, OR a new
+agent session is about to load memory as primer.
+
+**Why**: As memory grows, reading it inline in every session is
+costly. A subagent can pre-digest memory into a compact session
+primer so the main session only ingests recent + relevant entries,
+not the full history.
+
+**Pattern**:
+
+```
+Spawn `general-purpose` subagent (read-only) with:
+  - Read .coord/memory.yml in full
+  - Filter to: (a) entries from last 14 days; (b) entries tagged
+    as `principle` or `decision`; (c) entries referenced by the
+    current round's plan.yml
+  - Compose memory digest (≤ memory_digest_token_budget from
+    context_policy, default 1200 tokens)
+  - Return: digest text suitable to paste into session primer +
+    promotion-candidate flags (entries that could move to a long-
+    term principles file)
+
+Main session uses the digest instead of reading memory.yml directly.
+```
+
+Compaction-by-promotion: if subagent flags entries as long-term
+principles, run a follow-up step to move them out of `memory.yml`
+into a separate principles file, keeping `memory.yml` bounded.
 
 ## Commit Boundary
 

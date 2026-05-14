@@ -1,6 +1,6 @@
 ---
 name: agent-acceptance-gate
-description: Pre-merge / pre-commit checklist after a multi-agent round completes. Reads `.coord/plan.yml` for `success_criteria`, runs each verification command, aggregates `risks` from `result.json`, optionally calls academic-writing-skills banned-word audit on prose changes, checks token cost vs budget, and writes a PASS/FAIL verdict to `.coord/acceptance_<NNN>.md`. Use when the user asks "run the acceptance gate", "pre-commit check before merging", "are we ready to commit this round?", "verify all multi-agent output before I push".
+description: Use when a multi-agent round needs a pre-merge gate, pre-commit check, verification before push, or a PASS/FAIL decision after reconciliation.
 ---
 
 # agent-acceptance-gate
@@ -37,12 +37,19 @@ Not for:
 ## Inputs (auto-discovered)
 
 1. **`.coord/plan.yml`** — round, tasks, `success_criteria` per
-   task, `budget` if declared.
+   task, `budget` if declared, and `context_policy` if declared.
 2. **`.ai/<agent>_log_<NNN>_<slug>.txt.result.json`** — token usage,
-   risks, files_changed.
+   risks, files_changed. Filename uses double extension by design
+   (codex-delegate appends `.result.json` to the log path; see
+   `examples/codex_log_001_*.txt.result.json.sample`).
 3. **`.coord/reconciliation_<NNN>.md`** — reconciler's verdict; if
    reconciler said "retry", gate respects that.
-4. **For prose changes**: if any `result.json` shows files_changed
+4. **`.coord/context_<NNN>.md`** (optional, if `agent-context-budget`
+   ran) — declared per-task context budgets for this round. Gate
+   checks that actual summary sizes / log tail counts honored the
+   declared budgets. Absence is OK (the round may not have used
+   the context-budget skill); presence means the gate enforces it.
+5. **For prose changes**: if any `result.json` shows files_changed
    matching `*.md`, `*.tex`, `*.docx`, the gate optionally invokes
    `academic-writing-skills` banned-word + claim-evidence audit.
    (Skipped silently if `academic-writing-skills` not installed.)
@@ -114,12 +121,51 @@ If `.coord/plan.yml` declared a `budget.tokens`:
 
 If no budget declared, skip — don't invent one.
 
+### 6.5. Context contract check
+
+If `.coord/plan.yml` declares `context_policy` OR
+`.coord/context_<NNN>.md` exists, enforce both:
+
+**From `context_policy` (plan-wide defaults):**
+- Each result summary must be at or below
+  `result_summary_word_budget` (default 250 words).
+- Reconciliation and acceptance reports must reference raw logs by
+  path, not paste them.
+- Failure diagnostics may include only the configured log tail
+  (default 50 lines).
+- `.coord/memory.yml` entries must be promoted facts: decisions, open
+  questions, artifact pointers, or session outcomes. Long analysis in
+  memory is a context violation.
+
+**From `context_<NNN>.md` (per-task overrides, if present):**
+- Read the per-task `task_packet_token_budget` declarations.
+- For each task, verify `<task-id>` packet (the actual `.ai/<agent>_task_<NNN>_<slug>.md`)
+  did not exceed declared budget (rough char/word count, no need for
+  exact tokenizer — flag at >120% of declared).
+- Verify `result_summary_word_budget` per-task (overrides plan-wide
+  default if specified).
+- Verify `raw_logs_inline: path-only` was honored — any log file
+  pasted inline in reconciliation / acceptance is a violation.
+
+**Debate caps (if `.coord/debate_*.md` files exist and are linked from `plan.yml`):**
+- Each per-turn Pro / Con argument ≤ 400 words.
+- Total debate rounds ≤ 3 (unless `plan.yml` declares `debate_rounds: N` override).
+- Final synthesis section ≤ 250 words.
+- Total debate file size ≤ 8 KB.
+- Violations: gate at most CONDITIONAL PASS; recommend compressing
+  the transcript before promoting any decision to memory.
+
+Violations make the verdict at most **CONDITIONAL PASS**. If the
+violation hides acceptance evidence, mark **FAIL** and require a
+bounded summary rewrite.
+
 ### 7. Compose verdict
 
 | Condition | Verdict |
 |---|---|
 | All success_criteria PASS, no risks, reconciler says merge, prose audit clean, budget ok | **✅ PASS** |
 | All success_criteria PASS but reconciler flagged something | **⚠ CONDITIONAL PASS** — user resolves reconciler's issue, then re-run gate |
+| Context contract violated but evidence is still checkable | **⚠ CONDITIONAL PASS** — rewrite bounded summaries before next round |
 | Any success_criterion FAIL | **❌ FAIL** — list which task / criterion |
 | Risks include unresolved blockers | **❌ FAIL** — must address before merge |
 | Budget exceeded | **❌ FAIL — over budget** (user explicitly OK can override by editing plan.yml) |
@@ -222,6 +268,40 @@ T1, T3, T4 are individually mergeable; only T2 is blocked.
   step **after** all delegate tasks completed and the reconciler
   has been read. It's a Claude-in-session skill, not delegated.
 
+## Subagent review (keep main session lean)
+
+**When**: ≥ 5 `success_criteria` checks to run, OR ≥ 4 result.json
+files to aggregate, OR prose audit on ≥ 3 changed `.md` files.
+
+**Why**: The acceptance gate naturally pulls a lot of data into the
+main session (test outputs, all result.json files, reconciliation
+report, optional banned-word audits). Delegating the mechanical
+checks to a subagent and keeping only the structured verdict in
+main session cuts context cost roughly 3-5×.
+
+**Pattern**:
+
+```
+Spawn `code-reviewer` subagent with:
+  - Read .coord/plan.yml + .coord/reconciliation_<NNN>.md + every
+    .ai/*.result.json + .coord/context_<NNN>.md (if present)
+  - For each success_criterion in plan.yml: execute the command
+    or check the assertion (file existence, grep, etc.)
+  - Aggregate risks; sum tokens against budget
+  - Verify context contract (summary word budgets, raw-log-paths-only,
+    memory promotion rules, debate caps)
+  - Return: structured verdict
+    { verdict: PASS/CONDITIONAL_PASS/FAIL,
+      per_task: [...], risks: [...], budget_used: N,
+      context_violations: [...], next_actions: [...] }
+
+Main session reads the structured verdict and writes
+.coord/acceptance_<NNN>.md from it without re-reading the result.json /
+test output files.
+```
+
+This makes the gate auditable AND keeps the gating session itself
+under the context_policy main_session_token_budget.
 
 ## Commit Boundary
 

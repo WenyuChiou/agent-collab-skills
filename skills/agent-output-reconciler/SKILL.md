@@ -1,6 +1,6 @@
 ---
 name: agent-output-reconciler
-description: After multiple agents (Codex / Gemini / Claude) have completed a multi-agent round, read all their `result.json` + summary files + log tails, compute agreement / conflict / overlap, and write a `.coord/reconciliation_<NNN>.md` report with a recommended merge order or "retry these / escalate that" verdict. Use when the user asks "reconcile these N agent outputs", "did Codex and Gemini agree on this?", "synthesize the multi-agent run results", or "what did the agents do this round?".
+description: Use when multiple agents have completed a round and the user asks to reconcile outputs, compare Codex and Gemini, synthesize run results, identify conflicts, or decide what should be retried.
 ---
 
 # agent-output-reconciler
@@ -55,13 +55,21 @@ Not for:
      "timestamp_utc": "..."
    }
    ```
+   Each entry in `risks` must be a single sentence (≤ 30 words).
+   Long-form analysis belongs in `output_file`, not here — verbose
+   `risks` entries are a context-contract violation and the
+   reconciler should flag them.
 3. **`.ai/<agent>_result_<NNN>_<slug>.md`** — agent-written summary
    (referenced from each task file's `Acceptance` section).
-4. **`.ai/<agent>_log_<NNN>_<slug>.txt`** — full log; read tail for
-   error context if `status: error`.
+4. **`.ai/<agent>_log_<NNN>_<slug>.txt`** — full log path; read only
+   the configured tail for error context if `status: error`.
 5. **For `agent: claude` tasks** — read the Claude session's
    in-conversation output (whatever Claude said in the chat for that
    task, treated as the equivalent of `result.md`).
+6. **`.coord/context_<NNN>.md`** (optional, if `agent-context-budget`
+   ran) — declared per-task context budgets. Reconciler uses these
+   to flag oversized summaries / unbounded `risks` arrays at the
+   per-task granularity, not just the plan-wide default. Absence is OK.
 
 If the user passes specific paths, use those instead of
 auto-discovery.
@@ -78,7 +86,7 @@ of `(task_id, agent, slug)`.
 
 For each task:
 - Codex / Gemini: load `result.json` + `result_<NNN>_<slug>.md` +
-  log tail (last 50 lines).
+  log tail only when `status: error` (default max: last 50 lines).
 - Claude: pull from current conversation history.
 
 Flag any task where:
@@ -87,6 +95,8 @@ Flag any task where:
 - `status: "fallback"` → run completed but in degraded mode.
 - `result_<NNN>_<slug>.md` missing → agent didn't write the
   required summary (acceptance criterion violated).
+- `result_<NNN>_<slug>.md` exceeds `context_policy.result_summary_word_budget`
+  (default 250 words) → context contract violated.
 
 ### 2.5. Cross-task ID / slug consistency check (catches agent drift)
 
@@ -261,11 +271,41 @@ End with:
 - **Don't suppress conflicts.** If two agents edited the same
   function, surface that even if both edits are syntactically valid.
 - **Don't read the agent log files in full** — tail of last 50 lines
-  is enough for error context. The summary `.md` files are the
-  primary input.
+  is enough for error context, and only when status is `error`. The
+  summary `.md` files and `result.json` are the primary inputs.
+- **Don't paste raw logs into reconciliation reports.** Record log
+  paths and compact failure summaries only.
 - **Don't compute aggregate token cost** — that's the acceptance
   gate's job (it reads the same result.json files).
 
+## Subagent review (keep main session lean)
+
+**When**: ≥ 3 agent outputs to reconcile, OR any agent's
+`result_*.md` exceeds 200 words.
+
+**Why**: Reading 4 × full result.md files inline costs ~10 KB of
+main session context. A per-agent subagent can pre-digest each
+output and return only a structured ≤ 150-word verdict so the
+reconciler works from compact digests, not raw summaries.
+
+**Pattern** (parallel, one subagent per agent output):
+
+```
+For each task in plan.yml round:
+  Spawn `code-reviewer` subagent with:
+    - Read .ai/<agent>_result_<NNN>_<slug>.md
+    - Read .ai/<agent>_log_<NNN>_<slug>.txt.result.json (status,
+      risks, files_changed)
+    - Return: ≤ 150-word digest = { status, key claim, risks,
+      slug consistency vs plan.yml, missing-output flags }
+
+Main session reads only the digests and writes reconciliation_<NNN>.md
+from them. Never inlines the original result.md / result.json content.
+```
+
+This is the canonical pattern for "fan-out / fan-in" multi-agent
+reconciliation. It keeps the main session linear in N (number of
+agents) instead of quadratic in (N × avg result size).
 
 ## Commit Boundary
 
