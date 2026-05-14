@@ -316,7 +316,7 @@ declared success, never wrote anything.
    > `result.md`. If `git diff --stat` shows zero modified lines, this
    > task FAILED — re-execute and edit at least one target file.
 
-2. `agent-acceptance-gate` adds a new check `mtime_post_brief`:
+2. `agent-acceptance-gate` adds a new check `post_brief_mtime_check`:
    verifies the target file's mtime is **after** the brief file's
    mtime. If not, the agent didn't actually edit. Implementation:
    `[ "$(stat -c %Y target.md)" -gt "$(stat -c %Y brief.md)" ]`.

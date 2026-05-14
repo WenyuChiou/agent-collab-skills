@@ -15,7 +15,7 @@ corresponding skill changes.
 
 - **F13 — Gemini "liar mode"** (HIGH, recurring). Gemini-cli `--yolo`
   claimed success in `result.md` without modifying any target files.
-  Detection: `mtime_post_brief` check verifies target file mtime is
+  Detection: `post_brief_mtime_check` check verifies target file mtime is
   after brief file mtime. Routing rule: default to Codex for mirror
   sync, not Gemini.
 - **F14 — Skipping mandatory presets** (META-FAILURE). Phase D

@@ -31,6 +31,14 @@ invocation_param:
     description: "Path to anchor-validator script (defaults to repo's scripts/check-anchors.py if present)"
     required: false
     default: "scripts/check-anchors.py"
+  brief_file:
+    description: |
+      Path to the task brief file (used by post_brief_mtime_check to verify
+      target files were modified AFTER the brief was written — catches F13
+      Gemini liar-mode). Omit for manual / inline edits — the check is
+      skipped when this param is absent.
+    required: false
+    default: ""
 
 checks:
 
