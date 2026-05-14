@@ -13,6 +13,74 @@ It runs the `success_criteria` declared in `.coord/plan.yml`,
 aggregates risks, optionally audits prose, checks budget, and
 produces a single PASS / FAIL / RETRY verdict per task and overall.
 
+## Why use this instead of "I'll grep it myself"
+
+The gate replaces ad-hoc inline shell verification with one structured
+verdict. Concrete differences observed in production (`measured-benefits.md`
+R5 + Phase D):
+
+| Inline shell verification | This skill (R5 measured) |
+|---|---|
+| Main session runs 5+ grep / diff commands, interprets each output, drafts a manual PASS/FAIL — ~10k tokens of shell-debugging in context | Subagent runs all checks + returns ~2k token structured report → **~5× token saving** in main session |
+| Easy to forget a check ("did I grep for banned phrases this time?") | Preset YAML encodes the full check set — no missed checks |
+| Catches one drift case; misses cross-language echoes | `cross_document_link_text_parity` v0.2.3 caught 9+ real drift bugs the human audit missed |
+
+### The DeepSeek-R2 fabrication that almost shipped
+
+2026-05-13 session: Codex generated a paragraph claiming "DeepSeek-R2
+reaches 94.2% on GPQA Diamond" — pure fabrication. Manual grep on the
+diff missed it because the claim was internally consistent. Only a
+third-party reviewer agent doing live `gh api` search caught it.
+
+The `fact-check-frontier-models` preset was built directly from this
+incident. Running the preset would have caught the fabrication
+automatically by hitting arxiv + GitHub for each (model, benchmark, %)
+triple in the diff.
+
+→ **F14**: the preset existed by 2026-05-14, but a subsequent operator
+skipped it because "the task feels simple". The Phase D dogfood
+(49 files × 3 locales, 50k tokens inline vs 16k with gate = ~3× saving)
+proved the gate catches drift the operator misses. **The cost of running
+the gate is much smaller than the cost of one missed drift.**
+
+### Mandatory invocation triggers (no judgment call)
+
+These triggers are mechanical — if any fire, invoke the matching preset
+**before commit**. Skipping is F14 territory.
+
+| Trigger condition | MUST invoke |
+|---|---|
+| Diff touches ≥ 2 locale variants of same file stem (e.g., `06-x.md` + `06-x.en.md` + `06-x.zh-Hans.md`) | `--preset=multi-locale-mirror-sync --stem=<stem>` |
+| Diff adds entries to any catalog file (project listings, framework comparisons) | `--preset=catalog-entry-add --catalog-file=<path>` |
+| Diff touches a "frontier model" claim (model name within 3 lines of a benchmark %, e.g., "GPT-5.5 reaches 94% GPQA") | `--preset=fact-check-frontier-models --file=<path> --models=<csv>` |
+
+### CLAUDE.md snippet to enforce the gate
+
+```markdown
+## Acceptance gate rule (enforced)
+
+Before any commit that:
+- touches ≥ 2 locale variants of the same file stem → invoke
+  `Skill("agent-collab-workspace:agent-acceptance-gate",
+         args="--preset=multi-locale-mirror-sync --stem=<stem>")`
+- adds catalog entries → invoke `--preset=catalog-entry-add ...`
+- includes a frontier model + benchmark % claim → invoke
+  `--preset=fact-check-frontier-models ...`
+
+Skip only when the trigger does not apply (single-file diff, pure
+mechanical rename, etc.). NEVER skip when the trigger fires —
+this is the F14 anti-pattern that shipped the DeepSeek-R2
+fabrication.
+
+When the preset FAILS:
+1. Read the FAIL reasons in the gate report.
+2. Either fix-and-rerun (cheap drift) or re-delegate the task with
+   tighter constraints (systemic drift).
+3. Do NOT override the FAIL by hand. The whole point of the gate is
+   that the operator's judgment failed earlier — adding more operator
+   judgment on top defeats it.
+```
+
 ## When to use
 
 Trigger phrases:

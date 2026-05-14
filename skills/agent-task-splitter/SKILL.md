@@ -14,6 +14,55 @@ they produce.
 This skill **does not invoke any agent**. It only plans and writes
 files.
 
+## Why use this instead of hand-rolling briefs
+
+The supervisor (Claude) writing 2-3 brief files by hand looks cheap but
+costs token + drift in two specific ways:
+
+| Hand-rolled briefs | This skill |
+|---|---|
+| Same context block (file paths, conventions, in-scope list) repeated across 3 task files — 3× redundant token cost in main session. | Splitter writes once into `.coord/plan.yml`, references it from each task file. |
+| Subtle drift between briefs ("Codex was told to update README, Gemini was told to mirror Stage 6" — but Codex's scope quietly included Stage 6 too). F11 incident shipped because of this. | Splitter computes the file-scope set once and propagates the disjoint partition. |
+| Operator forgets which agent gets which task type (codex for mechanical, gemini for long-context CJK). | Routing rules baked in — same agent gets the same shape of work every time. |
+
+### Measured impact (real dogfood, 2026-05-14)
+
+| Setup | Main session tokens | Notes |
+|---|---|---|
+| **With splitter** (R2 + R4 combined: 2 parallel Codex + 1 mirror sync Gemini) | ~9k tokens | Splitter wrote 5 KB of plan.yml + briefs; main session read only structured summaries |
+| **Hand-rolled equivalent** (estimated counterfactual) | ~50-80k tokens | Operator inlines all context per brief, parses each agent's raw stdout, reconciles by hand |
+| **Saving** | **~6-9×** | Plus the splitter's disjoint-scope partition prevented F11-class drift |
+
+The skill earns its keep when ≥ 2 subtasks go to different agents (or
+same agent in parallel). For 1-shot delegation, call the delegate skill
+directly.
+
+### Anti-patterns this skill prevents
+
+- **F11** (cross-agent scope creep): Agent A sweeps a rule into files
+  that were Agent B's responsibility. Prevented by `.coord/plan.yml`'s
+  explicit `files_in_scope` partition per task.
+- **F14** (skipping the splitter for "small enough" 2-agent runs):
+  Operator decides to hand-roll because "it's only 2 tasks", and the
+  drift catches them later. The CLAUDE.md template below makes the
+  trigger mechanical: ≥ 2 parallel delegates → splitter is mandatory,
+  no judgment call.
+
+### CLAUDE.md snippet to enforce routing
+
+```markdown
+## Multi-agent routing rule (enforced)
+
+If a single round needs ≥ 2 delegate agents running in parallel (e.g.,
+codex + gemini, or 2 codex on independent subtasks): invoke
+`Skill("agent-collab-workspace:agent-task-splitter", args="round=N ...")`
+FIRST. Do NOT hand-roll briefs into `.ai/codex_task_*.md` directly when
+≥ 2 are needed in the same round.
+
+Decision rule (no judgment): 1 delegate per round → call delegate
+directly. ≥ 2 parallel → splitter first, then per-tool delegate.
+```
+
 ## When to use
 
 Trigger phrases:
