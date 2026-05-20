@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- **`agent-task-splitter` frontmatter description disambiguates from
+  `research-hub-multi-ai`.** Both skills previously claimed the same
+  trigger surface ("split a goal across Claude / Codex / Gemini",
+  "plan a multi-agent run", "Codex + Gemini") which caused silent
+  routing overlap surfaced by the
+  `WenyuChiou/ai-research-skills` Task #27 verification dogfood walk.
+  This change reframes `agent-task-splitter` as the **generic** task
+  splitter (writes `.coord/plan.yml`) and explicitly points
+  research-domain prompts that touch `.research/` / `.paper/` /
+  Zotero / Obsidian / NotebookLM ingest pipelines at
+  `research-hub-multi-ai` (writes `.coord/multi_ai_plan.md`,
+  research-hub-aware reconciliation). The sibling change on the
+  research-hub side shipped in `WenyuChiou/research-hub` PR #59
+  (squash-merged 2026-05-20 at `b4e0dd1`) so both skills now
+  describe their boundary the same way. Closes Phase 7 Item #5b.
+
 ## [0.2.3] - 2026-05-14 (later same day)
 
 ### Added — F13 + F14 from Phase D counter-example dogfood
