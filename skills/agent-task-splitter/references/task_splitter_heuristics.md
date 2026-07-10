@@ -1,4 +1,7 @@
-# Task-splitter heuristics — Codex vs Gemini vs Claude
+# Task-splitter heuristics — Codex vs cheap-Claude vs Claude
+
+> **Gemini lane DEPRECATED (2026-06-18, fails closed — see the reroute
+> table at the top of `SKILL.md`). No branch below routes to it.**
 
 This is the deeper reasoning behind the routing table in
 `SKILL.md`. Use this reference when:
@@ -21,18 +24,23 @@ Ask these questions in order. The first YES picks the agent.
 
 2. **Does the task require reading > 30 pages of source material
    in one pass to produce one synthesis?**
-   → Gemini (long context wins on raw read length).
-   - Examples: summarize 5 papers, compare 8 RFCs, find
-     terminology drift across a codebase's docs.
+   → Claude if the synthesis needs judgment (what matters, what
+   conflicts); claude-cheap if it is extraction/transcription-shaped
+   (inventory what's there, pull the numbers, list the sections).
+   - Examples: summarize 5 papers (claude), inventory the endpoints
+     across 8 RFCs (claude-cheap), find terminology drift across a
+     codebase's docs (claude-cheap to LIST candidates; claude to
+     judge them).
    - Counter-example: "read this 50-line file and refactor it" —
      that's Codex; the read is incidental.
 
 3. **Will the task produce CJK / Traditional Chinese / bilingual
    long-form output?**
-   → Gemini (better CJK fluency than Codex; comparable to Claude
-   but cheaper for long output).
-   - Examples: 繁中 release notes, bilingual research summaries,
-     zh-TW documentation.
+   → Claude for judgment/語感-bearing prose (release notes,
+   summaries); Codex for bulk mechanical CJK (mirror sync, term
+   sweeps with a stated mapping).
+   - Examples: 繁中 release notes (claude), zh-TW ↔ zh-Hans mirror
+     sync per style guide (codex).
 
 4. **Is the task "do roughly the same thing across N files"?**
    → Codex.
@@ -50,10 +58,11 @@ Ask these questions in order. The first YES picks the agent.
      all need judgment).
 
 6. **Is the task "review what was just written and find problems"?**
-   → Gemini if reviewing prose / docs / cross-file consistency.
-   → Claude if reviewing architecture / API design / security.
-   → Codex if reviewing for type errors / lint compliance / test
-   coverage gaps.
+   → Claude, always — a review is an honesty-critical verdict and
+   never goes to a cheap tier (measured: the cheap tier misses the
+   subtle-honesty case 0/5; see `SKILL.md` §3).
+   → Codex only for machine-checkable surfaces: type errors, lint
+   compliance, test coverage gaps.
 
 7. **None of the above clearly matches?**
    → Claude. Default to the most general-purpose agent when the
@@ -89,8 +98,9 @@ Example:
 - T1 (codex): define abstract base class in `interfaces.py`
 - T2 (codex): refactor provider A to inherit from ABC (parallel)
 - T3 (codex): refactor provider B to inherit from ABC (parallel)
-- T4 (gemini): review T2 + T3 outputs for consistency (depends on
-  both — actually this makes T4 a fan-in, see below)
+- T4 (claude): review T2 + T3 outputs for consistency (depends on
+  both — actually this makes T4 a fan-in, see below; reviews are
+  honesty-critical, so never a cheap lane)
 
 Cost: bound by max(T2, T3, T4) after T1.
 
@@ -105,7 +115,7 @@ Use when:
 
 Example:
 - T1 (codex): implement feature A
-- T2 (gemini): implement feature B (parallel with T1)
+- T2 (codex): implement feature B (parallel with T1)
 - T3 (claude): review T1 + T2 for design consistency (depends on
   both)
 
@@ -144,9 +154,9 @@ heterogeneity. If the goal really is "Codex-only", invoke
 
 ### Anti-pattern 3: Hidden cross-agent dependencies
 
-Don't put files in T1 (Codex) that T3 (Gemini) needs to read but
-not declare in `depends_on`. The DAG is the contract. If Gemini
-needs Codex's output, declare it.
+Don't put files in T1 (Codex) that T3 (claude-cheap) needs to read
+but not declare in `depends_on`. The DAG is the contract. If one
+lane needs another's output, declare it.
 
 ### Anti-pattern 4: No success_criteria
 

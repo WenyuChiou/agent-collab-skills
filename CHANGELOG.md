@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] - 2026-07-10
+
+### Changed — Gemini lane deprecated (fails closed); cheap-Claude lane added
+
+- `agent-task-splitter`: the `gemini` routing lane is DEPRECATED and the
+  splitter must never emit it (the lane fails closed since 2026-06-18).
+  A reroute table maps old gemini use-cases: CJK/bilingual judgment ->
+  `claude` inline; bulk mechanical CJK -> `codex`; long-context synthesis
+  -> `claude` or `claude-cheap`; reviews -> `claude` (honesty-critical,
+  never cheap). `agent: gemini` stays PARSE-ONLY for reconciling
+  historical rounds; §6b is retained as a bannered legacy reference and
+  its live invocation guidance was removed (recoverable from git history).
+- NEW `claude-cheap` lane (`agent: claude-cheap`, optional `model:` field,
+  default haiku): bounded mechanical subtasks run as pinned-model
+  subagents via the Agent tool with a codex-shaped brief file
+  (`.ai/claude_task_<NNN>_<slug>.md`). Guardrails baked in: the strong
+  orchestrator classifies (never the cheap lane), no honesty-critical
+  output on the cheap tier (measured 0/5 on subtle-honesty tasks), every
+  return re-verified. Measured basis: the cost-router benchmark in
+  fable-method-harness `benchmarks/route_cost_ab/` (routed = all-strong
+  quality/stability at ~0.4x cost, k=3 blind router).
+- Examples (SKILL.md worked example, examples/plan.yml.sample T3,
+  docs/example-walkthrough.md), the routing decision tree in
+  references/task_splitter_heuristics.md, reconciler globs, the CLAUDE.md
+  template snippet, plugin/marketplace descriptions, and re-plan guidance
+  all updated to the new lane set.
+- SCOPE NOTE: this release fixes the EMITTER (the splitter is the only
+  skill that creates new gemini dispatches). Sibling skills
+  (output-reconciler, acceptance-gate, debate, shared-memory,
+  context-budget) and README still mention the gemini lane — mostly as
+  readers of historical artifacts, which stays valid; a follow-up sweep
+  will align their prose. Tracked, not silently deferred.
+
 ## [0.2.3] - 2026-05-14 (later same day)
 
 ### Added — F13 + F14 from Phase D counter-example dogfood

@@ -197,7 +197,7 @@ override.
 
 ### 2. Run each task's success_criteria
 
-For each task with `agent: codex` or `agent: gemini`:
+For each task with `agent: codex` or `agent: claude-cheap` (or, in historical pre-0.3.0 rounds, `agent: gemini`):
 
 - Each `success_criteria` is either a runnable command or a
   checkable assertion.
