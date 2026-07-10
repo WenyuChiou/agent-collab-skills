@@ -24,7 +24,7 @@ files.
 > | Bulk mechanical CJK (mirror sync, term sweeps) | `codex` |
 > | Long-context reading + synthesis | `claude` inline, or `claude-cheap` when the reading is extraction/transcription-shaped |
 > | Second-opinion review of generated output | `claude` (a review is an honesty-critical task — never a cheap tier) |
-> | Experimental: Antigravity CLI (`agy`) as a future lane | UNVERIFIED — do not route real work until an mc08-style scoped-edit probe passes |
+> | Experimental: Antigravity CLI (`agy`) as a future lane | n=1 scoped-edit + no-commit probe PASS (2026-07-10; requires `--mode accept-edits` in print mode) — capability existence only, reliability UNMEASURED; still not a default lane |
 >
 > The `gemini` value remains PARSE-ONLY so reconcilers can read
 > historical plans; §6b is retained as a legacy reference.
