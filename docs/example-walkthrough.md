@@ -26,7 +26,7 @@ where Gemini invented task metadata under inline-prompt mode.
 .coord/plan.yml + .ai/<agent>_task_*.md
   ↓ agent-context-budget
 .coord/context_001.md + .coord/session_primer.md
-  ↓ codex-delegate / gemini-delegate
+  ↓ codex-delegate / claude lanes (Agent tool; gemini lane deprecated)
 .ai/<agent>_log_*.txt + result.json + result_*.md
   ↓ agent-output-reconciler        → examples/reconciliation_001.md.sample
 .coord/reconciliation_001.md
@@ -43,7 +43,7 @@ with mixed agent routing (see [plan.yml.sample](../examples/plan.yml.sample)):
 |---|---|---|---|
 | T1 | claude | `define-auth-contract` | Architecture / API contract decisions need judgment, not mechanical work |
 | T2 | codex | `scaffold-provider-core` | Multi-file boilerplate generation with clear spec |
-| T3 | gemini | (long-context audit) | Reading entire `tests/auth/**` to surface migration risks |
+| T3 | claude | (long-context audit) | Judging migration risks across `tests/auth/**` — a compatibility verdict is judgment-shaped, so it stays on the strong lane (the gemini lane is deprecated) |
 | T4 | codex | (provider split + shim) | Mechanical refactor across many files following a fixed pattern |
 
 The plan declared a token budget (180k), time budget (75 min), and
@@ -54,10 +54,10 @@ The plan declared a token budget (180k), time budget (75 min), and
 ## Step 2 — delegate skills run the agents
 
 `agent-context-budget` prepares the bounded context plan and fresh
-session primer before delegate execution. Tasks T2–T4 went to
-`codex-delegate` / `gemini-delegate`, which
-emitted the standard wrapper output (`result.json` + summary
-`.md`). T1 ran inline in the Claude session.
+session primer before delegate execution. Tasks T2 and T4 went to
+`codex-delegate`, which emitted the standard wrapper output
+(`result.json` + summary `.md`). T1 and T3 ran on Claude lanes (T1
+inline in the session; T3 as a Claude subagent reading the brief).
 
 ## Step 3 — reconciler synthesizes
 

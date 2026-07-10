@@ -1,18 +1,33 @@
 ---
 name: agent-task-splitter
-description: Use when the user asks to split a goal across Claude, Codex, or Gemini; plan a multi-agent run; break work into parallel agent tasks; or decompose a large task that needs bounded context handoffs. This is the **generic** multi-agent task splitter — writes `.coord/plan.yml` (a DAG) plus per-agent task files. NOT for research-domain routing that touches `.research/`, `.paper/`, or Zotero/Obsidian/NotebookLM ingest pipelines — for those, use `research-hub-multi-ai` instead (different artifact `.coord/multi_ai_plan.md`, research-hub-aware reconciliation).
+description: Use when the user asks to split a goal across Claude, Codex, or Gemini (gemini requests are rerouted - lane deprecated); plan a multi-agent run; break work into parallel agent tasks; or decompose a large task that needs bounded context handoffs. This is the **generic** multi-agent task splitter — writes `.coord/plan.yml` (a DAG) plus per-agent task files. NOT for research-domain routing that touches `.research/`, `.paper/`, or Zotero/Obsidian/NotebookLM ingest pipelines — for those, use `research-hub-multi-ai` instead (different artifact `.coord/multi_ai_plan.md`, research-hub-aware reconciliation).
 ---
 
 # agent-task-splitter
 
 Bridge between **a high-level goal** and **the multi-agent execution
 pipeline**. You write `.coord/plan.yml` (the DAG) and the per-agent
-task files. The delegate skills (`codex-delegate`, `gemini-delegate`)
-invoke the agents using those task files. The reconciler reads what
-they produce.
+task files. The delegate skills (`codex-delegate`; historically
+`gemini-delegate`) invoke the agents using those task files. The
+reconciler reads what they produce.
 
 This skill **does not invoke any agent**. It only plans and writes
 files.
+
+> **DEPRECATION + REROUTE (2026-06-18, updated 2026-07-10): the Gemini
+> lane is DEAD — it fails closed. Never emit `agent: gemini` tasks.**
+> Reroute what used to go there:
+>
+> | Used to route to `gemini` | Route now |
+> |---|---|
+> | CJK / bilingual judgment, 語感, long-form writing | `claude` (inline — judgment stays with the orchestrator) |
+> | Bulk mechanical CJK (mirror sync, term sweeps) | `codex` |
+> | Long-context reading + synthesis | `claude` inline, or `claude-cheap` when the reading is extraction/transcription-shaped |
+> | Second-opinion review of generated output | `claude` (a review is an honesty-critical task — never a cheap tier) |
+> | Experimental: Antigravity CLI (`agy`) as a future lane | UNVERIFIED — do not route real work until an mc08-style scoped-edit probe passes |
+>
+> The `gemini` value remains PARSE-ONLY so reconcilers can read
+> historical plans; §6b is retained as a legacy reference.
 
 ## Why use this instead of hand-rolling briefs
 
@@ -54,7 +69,7 @@ directly.
 ## Multi-agent routing rule (enforced)
 
 If a single round needs ≥ 2 delegate agents running in parallel (e.g.,
-codex + gemini, or 2 codex on independent subtasks): invoke
+codex + claude-cheap, or 2 codex on independent subtasks): invoke
 `Skill("agent-collab-workspace:agent-task-splitter", args="round=N ...")`
 FIRST. Do NOT hand-roll briefs into `.ai/codex_task_*.md` directly when
 ≥ 2 are needed in the same round.
@@ -67,16 +82,18 @@ directly. ≥ 2 parallel → splitter first, then per-tool delegate.
 
 Trigger phrases:
 
-- "Split this task across Claude / Codex / Gemini."
+- "Split this task across Claude / Codex / Gemini." (Gemini requests
+  get rerouted per the deprecation table above.)
 - "Plan a multi-agent run for `<goal>`."
 - "Break this down into parallel agent tasks."
-- "Decompose this goal into Codex + Gemini subtasks."
+- "Decompose this goal into Codex + cheap-Claude subtasks."
 - "Make a `.coord/plan.yml` for this work."
 
 Not for:
 
-- Running the agents themselves — that's `codex-delegate` /
-  `gemini-delegate`.
+- Running the agents themselves — that's `codex-delegate` (the
+  Claude lanes run via the Agent tool; `gemini-delegate` is
+  deprecated).
 - Reconciling agent outputs after they run — that's
   `agent-output-reconciler`.
 - Single-agent tasks — if the whole job is one Codex run, just use
@@ -100,7 +117,7 @@ You may also read existing project context if relevant:
   `research-context-compressor` from `ai-research-skills` has run).
 
 If the goal is large, cross-session, or likely to involve parallel
-Codex + Gemini work, use `agent-context-budget` before writing task
+multi-delegate work, use `agent-context-budget` before writing task
 files. It sets the bounded handoff policy that prevents context
 overflow.
 
@@ -139,7 +156,8 @@ Break the goal into 2-7 subtasks. For each subtask, decide:
 | Property | How to determine |
 |---|---|
 | `id` | `T1`, `T2`, ... contiguous |
-| `agent` | One of `codex` / `gemini` / `claude` (see classification below) |
+| `agent` | One of `codex` / `claude` / `claude-cheap` (see classification below; `gemini` is PARSE-ONLY legacy — never emit it) |
+| `model` | Optional, `claude-cheap` only: the cheap tier to pin (default `haiku`) |
 | `slug` | kebab-case task identifier (≤ 30 chars) |
 | `description` | one line |
 | `depends_on` | list of `T_n` ids that must complete first; `[]` if none |
@@ -152,21 +170,27 @@ of expected diff or requires more than one round of tool calls, it's
 too big — split further. If a subtask is < 10 lines of expected
 work, fold it into a sibling.
 
-### 3. Classify each subtask: Codex vs Gemini vs Claude
+### 3. Classify each subtask: Codex vs cheap-Claude vs Claude
 
 Use this routing table. When in doubt, see
 `references/task_splitter_heuristics.md` for nuanced cases.
+**Classification stays with the strong orchestrator — never let a
+cheap lane reclassify itself** (measured basis: the cost-router
+benchmark in `fable-method-harness/benchmarks/route_cost_ab/` —
+routed = all-strong on quality and stability at ~0.4x cost, and the
+cheap tier misses subtle-honesty tasks deterministically, 0/5).
 
 | Route to | Best for | Avoid |
 |---|---|---|
 | `codex` | Multi-file mechanical implementation, batch refactors, test scaffolds, regex-able edits across N files, boilerplate generation, codegen from clear specs | Architecture decisions, debugging root cause, security review, ambiguous requirements |
-| `gemini` | Long-context reading + synthesis (>50 page sources), bilingual / CJK long-form writing, second-opinion reviewing of generated output, terminology alignment across documents | Bulk code generation, mechanical implementation with no reading required |
-| `claude` | API contract design, bug diagnosis, acceptance review, design judgment, anything needing project memory / cross-conversation context | Token-heavy mechanical work, very-long-context single reading passes |
+| `claude-cheap` (Haiku-class subagent) | Single-shot mechanical work that needs no repo-wide edit rights: transcribe, sort, reformat, extract, count, schema-fill, apply-a-stated-pattern on bounded input | ANY honesty-critical output: "all green" verdicts, spec-discrepancy checks, reviews, completion claims (measured 0/5 on subtle honesty); ambiguous specs |
+| `claude` | API contract design, bug diagnosis, acceptance review, design judgment, anything needing project memory / cross-conversation context; ALL honesty-critical verdicts | Token-heavy mechanical work better suited to `codex`/`claude-cheap` |
+| `gemini` | **DEPRECATED — never emit.** See the reroute table at the top | — |
 
 A useful sanity check: **if the subtask is "do X to many files in
-roughly the same way", that's Codex. If the subtask is "read this
-big thing carefully and tell me what's there", that's Gemini. If
-the subtask is "decide whether X is right", that's Claude.**
+roughly the same way", that's Codex. If it is "do this one bounded
+mechanical thing and return the result", that's claude-cheap. If
+the subtask is "decide whether X is right", that's Claude — always.**
 
 ### 4. Identify dependencies (DAG)
 
@@ -224,13 +248,14 @@ tasks:
       - "pytest tests/auth/test_providers.py passes"
       - "no imports of src.auth.legacy from other modules"
   - id: T3
-    agent: gemini
-    slug: review-doc-coverage
-    description: "Read all public APIs in src/auth and verify docstrings reflect new architecture"
+    agent: claude-cheap
+    model: haiku
+    slug: doc-coverage-inventory
+    description: "List every public symbol in src/auth and whether it has a docstring mentioning the legacy class (mechanical inventory; the JUDGMENT of coverage adequacy stays in T4)"
     depends_on: [T1, T2]
     success_criteria:
-      - "every public symbol in src/auth has a docstring"
-      - "report flags any docstring still mentioning the legacy class"
+      - "a table of every public symbol in src/auth with has_docstring yes/no"
+      - "rows flagged where the docstring mentions the legacy class"
   - id: T4
     agent: claude
     slug: design-review
@@ -242,9 +267,8 @@ tasks:
 
 ### 6. Write per-agent task files
 
-Codex and Gemini have **different task file conventions**. Don't use
-a single template for both — each delegate skill expects its own
-shape.
+Each lane has **its own task file convention**. Don't use a single
+template for all — each executor expects its own shape.
 
 **Every task brief MUST include a pre-task scope confirmation block
 (W1, prevents drift)**:
@@ -337,7 +361,12 @@ Path: `.ai/codex_task_<NNN>_<slug>.md`. `<NNN>` is the zero-padded
 > the `-o` flag and the 10 MB log cap internally; only direct
 > `codex exec` calls need to set these explicitly.
 
-#### 6b. Gemini task files (`agent: gemini`)
+#### 6b. Gemini task files (`agent: gemini`) — LEGACY, DO NOT EMIT
+
+> **The Gemini lane is deprecated (fails closed). This section is
+> retained ONLY so reconcilers can interpret historical runs'
+> `.ai/gemini_*` files. Never write a new gemini task file; never
+> dispatch to gemini-cli. Route per the deprecation table at the top.**
 
 Path: `.ai/gemini_task_<NNN>_<slug>.md`. Format follows
 `gemini-delegate`'s "Supervisor Workflow" — different sections from
@@ -403,37 +432,44 @@ codex:
 > ignore patterns."` — this is the single most common Gemini failure
 > mode observed in dogfooding.
 >
-> **Default invocation pattern** (use this, not the `gemini -p "Read .ai/..."`
-> pattern):
->
-> ```bash
-> # Pipe task content via stdin to bypass gitignore restriction.
-> # Cap stdout at 10 MB to prevent runaway logs (incident pattern from
-> # global CLAUDE.md).
-> cat .ai/gemini_task_<NNN>_<slug>.md | gemini --yolo -p \
->   "Below is your full task brief via stdin. Execute it. Report
->    PASS/FAIL of the acceptance checks at end. Don't ask questions,
->    just do it." \
->   2>&1 | head -c 10485760 > .ai/gemini_log_<NNN>_<slug>.txt
-> ```
->
-> Avoid the older "inline TASK=$(cat)" pattern — it's longer and
-> the `cat | gemini --yolo -p ...` pipe is what actually got tested
-> on 2026-05-13. The `< /dev/null` redirect is not needed when stdin
-> is piped (the pipe satisfies stdin closure).
->
-> When you produce the gemini task file, also produce a sibling
-> shell snippet `.ai/gemini_run_<NNN>_<slug>.sh` with the inlined
-> invocation, so the user can run it directly without manual
-> assembly. Side effect of the inline mode: gemini doesn't have
-> file-system context for the task file's referenced inputs — make
-> sure the prompt body itself contains all critical context, not
-> just paths.
+> **(Legacy invocation notes removed 2026-07-10.)** The historical
+> `cat .ai/gemini_task_* | gemini --yolo -p ...` pipe and the
+> `.ai/gemini_run_*.sh` sidecar convention are documented in this
+> repo's git history (pre-`0.2.0`) if a historical run ever needs
+> re-interpretation. Do NOT reconstruct or run them — the lane fails
+> closed.
 
 #### 6c. Claude tasks (`agent: claude`)
 
 **Don't write a task file.** Claude executes inline in the current
 conversation. The plan.yml entry serves as the spec.
+
+#### 6c-2. Cheap-Claude tasks (`agent: claude-cheap`)
+
+Path: `.ai/claude_task_<NNN>_<slug>.md` — same brief shape as codex
+task files (scope confirmation block, acceptance, result file
+`.ai/claude_result_<NNN>_<slug>.md`), because the executor is a
+context-blind subagent, not the orchestrating session.
+
+Invocation (Claude Code): spawn a subagent with the model pinned to
+the cheap tier —
+
+```
+Agent(prompt="Read .ai/claude_task_<NNN>_<slug>.md and execute it
+      verbatim; write the result summary to the path it names.",
+      model="haiku")
+```
+
+Guardrails (never optional; measured basis:
+`fable-method-harness/core/model_routing_playbook.md`):
+
+- The ORCHESTRATOR classifies; a cheap lane never reclassifies or
+  extends its own scope — uncertainty escalates to `claude`.
+- No honesty-critical output on this lane — no "all green" verdicts,
+  no spec-discrepancy calls, no reviews, no completion claims
+  (cheap tier measured 0/5 replicate trials on the subtle-honesty task).
+- Every cheap-lane return is re-verified by the orchestrator before
+  merging ("delegate returned" is itself a review trigger).
 
 ### 6d. Task-shape guidance (prevents F6 over-tabularization)
 
@@ -513,7 +549,7 @@ Plan written to .coord/plan.yml (round 1, N tasks).
 Task files ready:
   .ai/codex_task_001_<slug1>.md
   .ai/codex_task_001_<slug2>.md
-  .ai/gemini_task_001_<slug3>.md
+  .ai/claude_task_001_<slug3>.md
 
 Next steps:
   # Run codex tasks (after T1 finishes, T2/T3 can run in parallel).
@@ -531,10 +567,10 @@ Next steps:
   # 7 GB runaway-log incident — see step 6a):
   #   ... 2>&1 | head -c 10485760 > .ai/codex_log_001_<slug1>.txt
 
-  # Run gemini tasks via stdin pipe (bypasses gitignore + caps stdout in one go):
-  cat .ai/gemini_task_001_<slug3>.md | gemini --yolo -p \
-    "Below is your full task brief via stdin. Execute it. Report PASS/FAIL at end." \
-    2>&1 | head -c 10485760 > .ai/gemini_log_001_<slug3>.txt
+  # Run cheap-Claude tasks as pinned-model subagents (Claude Code):
+  #   Agent(prompt="Read .ai/claude_task_001_<slug3>.md and execute it
+  #         verbatim; write the result summary to the path it names.",
+  #         model="haiku")
 
   # After all delegate tasks finish, reconcile:
   # invoke agent-output-reconciler in this session
@@ -544,7 +580,7 @@ Next steps:
 
 If the user reassigns a task to a different agent **after** plan.yml
 and task files were already written (e.g., "actually, T2 should be
-gemini, not codex"):
+claude-cheap, not codex"):
 
 1. **Edit the agent assignment in `.coord/plan.yml`** for that
    single task. Don't bulk-replace — surgical edit only. Bulk
@@ -553,11 +589,11 @@ gemini, not codex"):
 
 2. **Delete the obsolete task file** (e.g., the old
    `.ai/codex_task_<NNN>_<slug>.md` if T2 was codex and is now
-   gemini). Lingering obsolete files confuse the reconciler — it
+   claude-cheap). Lingering obsolete files confuse the reconciler — it
    may pick them up and report on a task that didn't actually run.
 
 3. **Write the new task file** in the new agent's format (per step
-   6a / 6b). Slug stays the same; only the agent prefix changes.
+   6a / 6c-2). Slug stays the same; only the agent prefix changes.
 
 4. **If dependents already ran** (e.g., T3 ran depending on T2's
    old codex output): note in the round's `.coord/memory.yml`
@@ -615,8 +651,9 @@ verdict.
 
 ```
 Spawn `code-reviewer` subagent with this brief:
-- Read .coord/plan.yml + every .ai/{codex,gemini,claude}_task_<NNN>_*.md
-  generated this round
+- Read .coord/plan.yml + every .ai/{codex,claude}_task_<NNN>_*.md
+  generated this round (the gemini glob applies only when reconciling
+  a historical pre-deprecation round)
 - Verify: (a) each plan.yml task has a matching task file at correct
   path; (b) slugs in filenames match plan.yml task.slug exactly;
   (c) agent assignment matches; (d) no orphan task files from prior
@@ -636,13 +673,13 @@ before invoking delegates.
 ```
 [agent-task-splitter]
   Plan: .coord/plan.yml (round 1, 4 tasks)
-  Routing: 2× codex, 1× gemini, 1× claude
+  Routing: 2× codex, 1× claude-cheap, 1× claude
   DAG: T1 → [T2, T3] → T4
   Task files ready under .ai/
 
   Run order (respecting dependencies):
     1. codex T1 (no deps)
-    2. codex T2 + gemini T3 (parallel after T1)
+    2. codex T2 + claude-cheap T3 (parallel after T1)
     3. claude T4 (after T2 + T3)
 
   After all 3 external tasks finish:

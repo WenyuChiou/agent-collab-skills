@@ -50,7 +50,7 @@ tasks:
       - "python -m mypy src/auth/interfaces.py src/auth/registry.py exits 0"
       - "Existing imports from src.auth.legacy continue to resolve for unchanged call sites."
   - id: T3
-    agent: gemini
+    agent: claude
     slug: audit-legacy-surface
     description: "Read the auth package and test suite end-to-end to identify call-site expectations, naming drift, and migration risks around preserving legacy.py behavior."
     depends_on:

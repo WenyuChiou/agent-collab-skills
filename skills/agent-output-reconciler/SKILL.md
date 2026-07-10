@@ -28,7 +28,7 @@ Trigger phrases:
 
 Not for:
 
-- Running the agents — that's `codex-delegate` / `gemini-delegate`.
+- Running the agents — that's `codex-delegate` (Claude lanes run via the Agent tool; `gemini-delegate` is deprecated, fails closed).
 - Final accept-or-reject gate before merging — that's
   `agent-acceptance-gate`. The reconciler **describes**; the
   acceptance gate **decides**.
