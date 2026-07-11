@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.1] - 2026-07-11
+
+### Changed — Antigravity lane promoted (evidence row only)
+
+- `agent-task-splitter`: the reroute-table Antigravity row updated from
+  "capability existence only, not a default lane" to PROMOTED — the
+  pre-registered k=5 reliability gate passed 5/5 on 2026-07-11 (fresh
+  sandbox per trial; planted decoy untouched; planted judgment question
+  escalated verbatim, not acted on; zero git ops; deterministic grader).
+  Recorded as `mc12_antigravity_k5_reliability` in fable-method-harness
+  alongside `mc11`. The lane is routable for bounded mechanical subtasks
+  like `codex` / `claude-cheap`; cheap-tier guardrails unchanged (never
+  reviews, completion verdicts, governance, or anything ambiguous). No
+  behavior change to any script — documentation/evidence row only.
+
 ## [0.3.0] - 2026-07-10
 
 ### Changed — Gemini lane deprecated (fails closed); cheap-Claude lane added

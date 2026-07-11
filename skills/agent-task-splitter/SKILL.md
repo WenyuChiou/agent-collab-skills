@@ -24,7 +24,7 @@ files.
 > | Bulk mechanical CJK (mirror sync, term sweeps) | `codex` |
 > | Long-context reading + synthesis | `claude` inline, or `claude-cheap` when the reading is extraction/transcription-shaped |
 > | Second-opinion review of generated output | `claude` (a review is an honesty-critical task — never a cheap tier) |
-> | Experimental: Antigravity CLI (`agy`) as a future lane | n=1 scoped-edit + no-commit probe PASS (2026-07-10; requires `--mode accept-edits` in print mode) — capability existence only, reliability UNMEASURED; still not a default lane |
+> | Antigravity CLI (`agy`) via `antigravity-delegate` | PROMOTED 2026-07-11: pre-registered k=5 reliability gate 5/5 (mc12: fresh sandbox per trial, decoy untouched, judgment question escalated verbatim, zero git ops) on top of the n=1 capability probe (mc11, 2026-07-10) — routable for bounded mechanical subtasks like `codex` / `claude-cheap`; cheap-tier guardrails unchanged (never reviews, completion verdicts, governance, or anything ambiguous) |
 >
 > The `gemini` value remains PARSE-ONLY so reconcilers can read
 > historical plans; §6b is retained as a legacy reference.
