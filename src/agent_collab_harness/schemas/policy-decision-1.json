@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/WenyuChiou/agent-collab-skills/blob/main/src/agent_collab_harness/schemas/policy-decision-1.json",
+  "title": "PolicyDecision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_id",
+    "policy_hash",
+    "decision",
+    "spawn_allowed",
+    "checkpoint_required",
+    "reasons",
+    "effective_limits",
+    "observed_metrics"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "policy_id": {"type": "string", "minLength": 1, "pattern": ".*\\S.*"},
+    "policy_hash": {
+      "oneOf": [
+        {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        {"type": "null"}
+      ]
+    },
+    "decision": {"enum": ["continue", "checkpoint", "stop"]},
+    "spawn_allowed": {"type": "boolean"},
+    "checkpoint_required": {"type": "boolean"},
+    "reasons": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "effective_limits": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "observed_metrics": {
+      "type": "object",
+      "additionalProperties": {"type": "number", "minimum": 0}
+    }
+  }
+}

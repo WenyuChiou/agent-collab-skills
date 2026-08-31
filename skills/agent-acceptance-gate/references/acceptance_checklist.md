@@ -1,227 +1,118 @@
-# Acceptance gate checklist — standard checks + how to add custom ones
+# Acceptance verification taxonomy
 
-The acceptance gate runs N checks per round. The standard checks
-are described in `SKILL.md`'s workflow. This reference documents:
+Run the cheapest deterministic checks first. Short-circuit on a blocking
+failure, but retain evidence from completed checks.
 
-1. The full checklist taxonomy (what categories of checks exist).
-2. How `success_criteria` from `.coord/plan.yml` map to runnable
-   checks.
-3. How to add custom project-specific checks.
+## 1. Contract existence
 
-## Full checklist taxonomy
+For every task, verify:
 
-The gate runs checks in this order, short-circuiting on hard
-failures:
+- task packet and declared role exist;
+- checkpoint and policy decision validate;
+- result status is explicit;
+- required result, evidence, and log references exist.
 
-### Layer 1: existence checks (cheapest, run first)
+Missing artifacts are failures unless the plan explicitly marks them optional.
+Declined, cancelled, timeout, degraded, and failed are not aliases for success.
 
-For each task in the round:
-- Does `result.json` exist? (If not → run never completed → FAIL.)
-- Does `result_<NNN>_<slug>.md` exist? (If not → agent didn't
-  write summary, acceptance criterion violated → FAIL.)
-- For `agent: claude` tasks: did Claude make the required statement
-  in conversation? (If not → FAIL.)
+## 2. Status and evidence
 
-If any L1 check fails, downstream checks don't matter — fail fast.
+- `success`: continue to criterion verification.
+- `degraded`: verify available evidence and cap the verdict as specified by the
+  plan; never silently pass a missing required capability.
+- `failed`, `cancelled`, `declined`, or `timeout`: fail the task unless the plan
+  explicitly treats that task as optional.
+- `missing` or `null`: record the missing input and fail any dependent check.
 
-### Layer 2: status checks
+A prose claim that tests passed is not test evidence. Require the command, exit
+code, environment, bounded output excerpt, and artifact reference expected by
+the project.
 
-For each `result.json`:
-- `status: "success"` → continue to L3.
-- `status: "fallback"` → flag as DEGRADED, run L3 anyway, downgrade
-  final verdict.
-- `status: "error"` → FAIL the task; aggregate errors for report.
+## 3. Success criteria
 
-### Layer 3: success_criteria verification
+Classify each declared criterion:
 
-For each task with `agent: codex|gemini`, walk through
-`success_criteria` from plan.yml:
+- command: run the exact command and record exit code;
+- file/content: verify existence and required content;
+- structure/schema: use the project validator or an AST/schema check;
+- semantic/manual: mark pending until the named human or qualified reviewer
+  records a decision.
 
-#### Type A: runnable command
+If a criterion cannot be translated safely, record `manual check required`.
+Never infer PASS.
 
-```yaml
-success_criteria:
-  - "pytest tests/auth/ passes"
-  - "mypy src/auth/ has 0 errors"
-  - "ruff check src/auth/ exits clean"
+## 4. Scope and reconciliation
+
+- Compare the staged or task-bounded diff with declared file scopes.
+- Accept a transitive change only when the task result names and justifies it.
+- Fail unexplained files or undisclosed within-file scope expansion.
+- A reconciliation recommendation may cap the verdict but cannot make the gate
+  less strict.
+
+## 5. Presets and project invariants
+
+Run triggered multi-locale, catalog-entry, and factual-claim presets. Also run
+repository-defined invariants. Report skipped optional checks as `SKIP` and
+required unavailable checks as `FAIL` or `BLOCKED`, never PASS.
+
+For claim verification, distinguish:
+
+- documented by an authoritative source;
+- locally verified;
+- not found;
+- not applicable.
+
+## 6. Policy
+
+Use `agent-collab policy evaluate` with the current policy and checkpoint. Do
+not reproduce policy numbers in the acceptance report. Record policy ID, hash,
+decision, reasons, and whether spawning or another cycle is allowed.
+
+## 7. Risk severity
+
+Blocking examples include failed required tests, invalid schemas, security
+findings, unsupported factual claims, unapproved breaking changes, scope drift,
+and unreadable configured policy. Non-blocking risks remain visible and require
+the plan's stated disposition.
+
+## 8. Immutable evidence and human decision
+
+Each gate run creates a new acceptance record. A later human decision appends a
+separate record containing:
+
+- gate;
+- actor;
+- decision: `approve`, `decline`, or `revise`;
+- timestamp;
+- rationale;
+- affected action hash.
+
+Do not edit an earlier acceptance record or memory event. Human approval may
+authorize a documented exception; it does not falsify the underlying evidence.
+
+## Acceptance record skeleton
+
+```markdown
+# Acceptance evidence — <run-id>
+
+**Technical verdict:** PASS / CONDITIONAL PASS / FAIL
+**Action hash:** <sha256>
+**Plan:** <reference>
+**Checkpoint:** <reference>
+**Policy:** <policy id and hash>
+
+## Per-task checks
+- <task-id> — <role> — <status> — <criterion and evidence>
+
+## Scope and preset checks
+- <check> — PASS / FAIL / SKIP — <evidence>
+
+## Risks and blockers
+- <severity> — <finding> — <required action>
+
+## Human decision
+- Pending, or <immutable decision-record reference>
 ```
 
-Translate to:
-- `pytest tests/auth/`
-- `mypy src/auth/` and check for `Found 0 errors`
-- `ruff check src/auth/` and check exit 0
-
-Run each. PASS = exit 0; FAIL = otherwise. Capture last 20 lines of
-output for the report.
-
-#### Type B: file existence / content assertion
-
-```yaml
-success_criteria:
-  - "src/auth/interfaces.py exists and defines AuthProvider ABC"
-  - "no imports of src.auth.legacy from other modules"
-```
-
-Translate:
-- `[ -f src/auth/interfaces.py ] && grep -q "class AuthProvider" src/auth/interfaces.py`
-- `! grep -r "from src.auth.legacy" src/ tests/`
-
-For "exists and X" patterns, both halves must hold.
-
-#### Type C: structural / AST assertion
-
-```yaml
-success_criteria:
-  - "every public symbol in src/auth has a docstring"
-```
-
-These are harder to translate. Options:
-- Use a lint tool (`pydocstyle src/auth/`).
-- Spawn a sub-agent (small Codex task to verify).
-- If neither is available, mark as "manual check needed" — don't
-  silently pass.
-
-#### Type D: in-conversation verdict (for `agent: claude` tasks)
-
-```yaml
-success_criteria:
-  - "explicit YES/NO verdict + rationale in chat"
-```
-
-Read the current Claude conversation for the most recent in-task
-output. Check whether it contains an unambiguous YES or NO with a
-rationale paragraph. If not → FAIL with "Claude didn't deliver
-verdict".
-
-### Layer 4: cross-task checks (if reconciliation report exists)
-
-Read `.coord/reconciliation_<NNN>.md`. Look for the "Recommended
-action" section.
-
-| Reconciler said | Gate verdict (assuming L1-L3 pass) |
-|---|---|
-| "Merge all" | ✅ PASS |
-| "Merge X, Y; manually merge Z" | ⚠ CONDITIONAL PASS — user does manual merge |
-| "Retry T<n>" | ❌ FAIL — task needs retry |
-| "Escalate to debate" | ⚠ CONDITIONAL PASS — debate first, then re-gate |
-
-The reconciler's verdict caps the gate's verdict. Gate can be
-stricter (downgrade based on its own checks) but not laxer.
-
-### Layer 5: aggregate risks
-
-Concat all `risks` arrays from result.json files. Risks classified:
-- **High** (failed test, security warning, breaking change without
-  shim) → blocks PASS.
-- **Medium** (deprecation warning, suboptimal performance,
-  inconsistent style) → mention in report, don't block.
-- **Low / informational** → mention in report.
-
-If you can't tell severity from the risk text, ask Claude to
-classify (1 prompt, 1 sentence per risk).
-
-### Layer 6: optional prose audit
-
-If any task changed `*.md` / `*.tex` / `*.docx` AND
-`academic-writing-skills` is installed:
-- Invoke `academic-writing-skills` banned-word audit on changed
-  files.
-- Invoke claim-evidence audit if `.paper/claims.yml` exists in
-  project.
-- Add results to gate report.
-
-If audit finds issues: mention but don't auto-fail (these are
-quality concerns, not correctness blockers — user decides).
-
-If `academic-writing-skills` isn't installed: skip silently. Don't
-fail just because the audit isn't available.
-
-### Layer 7: budget check
-
-If `.coord/plan.yml` declared `budget.tokens`:
-- Sum `tokens_used` across all `result.json` (handle missing field
-  gracefully).
-- If sum > budget → ❌ FAIL with "exceeded budget by N tokens".
-
-If no budget declared, skip silently.
-
-## Custom checks
-
-### Project-specific success criteria
-
-Real projects have invariants beyond what `.coord/plan.yml`
-declares. Add them as success criteria in plan.yml when the
-splitter produces it, OR maintain a project-level checklist file
-the gate also runs.
-
-Convention: `.coord/checklist.yml` (optional, project-level):
-
-```yaml
-project_invariants:
-  # These run on every gate, every round
-  - id: "no-prints-in-prod"
-    description: "No bare print() statements in src/"
-    command: "! grep -rn 'print(' src/"
-  - id: "no-todo-comments-on-main"
-    description: "No TODO comments in main-branch code"
-    command: "! grep -rn 'TODO' src/"
-    severity: "medium"     # warning, not blocker
-```
-
-The gate reads this file (if present) and runs each invariant
-after the per-task success_criteria.
-
-### Custom check via sub-skill
-
-For project invariants too complex for a shell command, write a
-new skill that the gate invokes. Example: a research project
-might have a `research-invariants` skill that checks
-`.research/project_manifest.yml` is up to date.
-
-The gate calls that skill (in-conversation Claude invocation),
-treats its output as a check result.
-
-## Severity calibration
-
-Default severity for failed checks:
-
-| Check | Severity |
-|---|---|
-| Failed test | High |
-| Compile/lint error | High |
-| Missing required file | High |
-| Security warning | High |
-| Deprecation warning | Medium |
-| Inconsistent style / convention violation | Medium |
-| Banned word / overclaim flagged in prose | Medium |
-| TODO comment | Low |
-| Naming inconsistency | Low |
-
-High blocks PASS. Medium mentioned in report; gate verdict depends
-on combined count (5+ medium = downgrade to CONDITIONAL).
-
-## Override pathway
-
-Sometimes the user knows better than the gate — e.g., a failing
-test is actually expected because a dependency broke, not the
-agent's work. To override:
-
-1. Manually edit `.coord/acceptance_<NNN>.md` to replace the
-   verdict.
-2. Add an "Override rationale" section explaining why.
-3. Future gate runs see the override and don't overwrite it
-   (the gate writes a NEW file `acceptance_<NNN>_run<M>.md` if
-   one already exists).
-
-The gate respects user overrides — its job is to surface what's
-checkable, not to be the final authority. The user is.
-
-## What gate does NOT do
-
-- Run agents (delegate skills).
-- Decide which tasks to retry — it reports FAIL; user retries.
-- Commit / merge / push — those are user actions.
-- Modify source code — gate is read-only on source.
-- Update `.coord/plan.yml` — gate can recommend re-planning, but
-  user invokes `agent-task-splitter` again.
-- Update `.coord/memory.yml` — separate skill.
+The gate is read-only with respect to source, plan, canonical memory, commits,
+branches, and releases.

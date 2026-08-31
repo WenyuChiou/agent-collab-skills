@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/WenyuChiou/agent-collab-skills/blob/main/src/agent_collab_harness/schemas/agent-policy-1.json",
+  "title": "AgentCollabPolicy",
+  "type": "object",
+  "oneOf": [
+    {"$ref": "#/$defs/publicPolicy"},
+    {"$ref": "#/$defs/portableHarnessPolicy"}
+  ],
+  "$defs": {
+    "publicPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "policy_id", "limits", "human_authorization"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "policy_id": {"type": "string", "minLength": 1, "pattern": ".*\\S.*"},
+        "limits": {"$ref": "#/$defs/publicLimits"},
+        "human_authorization": {"$ref": "#/$defs/humanAuthorization"}
+      }
+    },
+    "publicLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_cycles", "max_tool_calls", "max_elapsed_seconds",
+        "checkpoint_transcript_bytes", "max_transcript_bytes",
+        "max_same_failure_retries", "max_no_evidence_cycles",
+        "max_children_per_parent", "max_concurrency",
+        "max_task_packet_tokens", "max_parent_summary_tokens",
+        "max_memory_digest_tokens", "max_child_result_words"
+      ],
+      "properties": {
+        "max_cycles": {"type": "integer", "minimum": 0},
+        "max_tool_calls": {"type": "integer", "minimum": 0},
+        "max_elapsed_seconds": {"type": "integer", "minimum": 0},
+        "checkpoint_transcript_bytes": {"type": "integer", "minimum": 0},
+        "max_transcript_bytes": {"type": "integer", "minimum": 0},
+        "max_same_failure_retries": {"type": "integer", "minimum": 0},
+        "max_no_evidence_cycles": {"type": "integer", "minimum": 0},
+        "max_children_per_parent": {"type": "integer", "minimum": 0},
+        "max_concurrency": {"type": "integer", "minimum": 0},
+        "max_task_packet_tokens": {"type": "integer", "minimum": 0},
+        "max_parent_summary_tokens": {"type": "integer", "minimum": 0},
+        "max_memory_digest_tokens": {"type": "integer", "minimum": 0},
+        "max_child_result_words": {"type": "integer", "minimum": 0}
+      }
+    },
+    "humanAuthorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key_hashes"],
+      "properties": {
+        "key_hashes": {
+          "type": "object",
+          "propertyNames": {"pattern": "^\\S+$"},
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    "portableHarnessPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "limits", "context", "terminal_states"],
+      "properties": {
+        "version": {"const": 1},
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "max_plan_act_reflect_cycles", "max_tool_calls",
+            "max_wall_time_seconds", "checkpoint_transcript_bytes",
+            "max_transcript_bytes", "max_same_failure_retries",
+            "max_no_evidence_cycles", "max_children_per_parent",
+            "max_concurrency"
+          ],
+          "properties": {
+            "max_plan_act_reflect_cycles": {"type": "integer", "minimum": 0},
+            "max_tool_calls": {"type": "integer", "minimum": 0},
+            "max_wall_time_seconds": {"type": "integer", "minimum": 0},
+            "checkpoint_transcript_bytes": {"type": "integer", "minimum": 0},
+            "max_transcript_bytes": {"type": "integer", "minimum": 0},
+            "max_same_failure_retries": {"type": "integer", "minimum": 0},
+            "max_no_evidence_cycles": {"type": "integer", "minimum": 0},
+            "max_children_per_parent": {"type": "integer", "minimum": 0},
+            "max_concurrency": {"type": "integer", "minimum": 0}
+          }
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "task_packet_tokens", "parent_summary_tokens",
+            "memory_digest_tokens", "child_result_words"
+          ],
+          "properties": {
+            "task_packet_tokens": {"type": "integer", "minimum": 0},
+            "parent_summary_tokens": {"type": "integer", "minimum": 0},
+            "memory_digest_tokens": {"type": "integer", "minimum": 0},
+            "child_result_words": {"type": "integer", "minimum": 0}
+          }
+        },
+        "terminal_states": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "pattern": ".*\\S.*"}
+        }
+      }
+    }
+  }
+}

@@ -1,173 +1,89 @@
-"""Catalog tests for agent-collab-skills.
-
-Single-source marketplace + plugin bundle. These tests guard the
-contract that:
-
-1. The marketplace ships exactly one bundle plugin
-   (agent-collab-workspace).
-2. The bundle plugin's source is this same repo (url, .git, ref:main).
-3. Every skill named in the marketplace has a SKILL.md file present
-   under skills/<name>/.
-4. Every SKILL.md has YAML frontmatter with name + description.
-5. The 6 expected skills are present and named consistently.
-"""
+"""Plugin and skill discovery contract tests."""
 
 import json
 import re
 from pathlib import Path
 
+
 ROOT = Path(__file__).resolve().parents[1]
-
-EXPECTED_SKILLS = [
-    "agent-task-splitter",
-    "agent-context-budget",
-    "agent-output-reconciler",
-    "agent-debate",
-    "agent-shared-memory",
+VERSION = "0.4.0"
+EXPECTED_SKILLS = {
     "agent-acceptance-gate",
-    "agent-plan-act-reflect",  # v0.2.2 — single-agent iterative self-correction
-]
+    "agent-context-budget",
+    "agent-debate",
+    "agent-output-reconciler",
+    "agent-plan-act-reflect",
+    "agent-shared-memory",
+    "agent-task-splitter",
+}
 
 
-def test_marketplace_well_formed():
-    """The .claude-plugin/marketplace.json file makes the catalog a
-    Claude Code plugin marketplace. Single bundle plugin
-    (agent-collab-workspace) sourced from this same repo."""
-    marketplace_path = ROOT / ".claude-plugin" / "marketplace.json"
-    assert marketplace_path.exists(), "missing .claude-plugin/marketplace.json"
-
-    with marketplace_path.open(encoding="utf-8") as f:
-        data = json.load(f)
-
-    # Top-level required fields
-    assert data.get("name") == "agent-collab-skills"
-    assert "owner" in data and data["owner"].get("name")
-    assert "metadata" in data and data["metadata"].get("version")
-    assert "plugins" in data and isinstance(data["plugins"], list)
-    assert len(data["plugins"]) == 1, "marketplace must ship exactly 1 bundle plugin"
-
-    plugin = data["plugins"][0]
-    assert plugin["name"] == "agent-collab-workspace"
-    assert plugin["description"]
-    assert plugin.get("category") == "productivity"
-    assert plugin.get("homepage")
-    assert plugin.get("version")
-
-    src = plugin["source"]
-    assert src["source"] == "url"
-    assert src["url"].endswith(".git")
-    assert "agent-collab-skills" in src["url"]
-    assert src.get("ref") == "main"
+def _frontmatter(text: str) -> str:
+    assert text.startswith("---\n")
+    end = text.find("\n---\n", 4)
+    assert end > 0
+    return text[4:end]
 
 
-def test_plugin_json_well_formed():
-    """The .claude-plugin/plugin.json declares the bundle plugin
-    metadata (consumed by Claude Code on install)."""
-    plugin_path = ROOT / ".claude-plugin" / "plugin.json"
-    assert plugin_path.exists(), "missing .claude-plugin/plugin.json"
+def test_exactly_seven_active_skills_have_valid_frontmatter():
+    skill_dirs = {
+        path.parent.name for path in (ROOT / "skills").glob("*/SKILL.md")
+    }
+    assert skill_dirs == EXPECTED_SKILLS
 
-    with plugin_path.open(encoding="utf-8") as f:
-        data = json.load(f)
-
-    assert data["name"] == "agent-collab-workspace"
-    assert data["description"]
-    assert data["version"]
-    assert data.get("license") == "MIT"
-    assert "keywords" in data and len(data["keywords"]) >= 3
-
-
-def test_all_expected_skills_have_skill_md():
-    """Every skill named in EXPECTED_SKILLS must have a SKILL.md
-    file at skills/<name>/SKILL.md."""
-    skills_dir = ROOT / "skills"
-    assert skills_dir.exists(), "missing skills/ directory"
-
-    for skill_name in EXPECTED_SKILLS:
-        skill_md = skills_dir / skill_name / "SKILL.md"
-        assert skill_md.exists(), f"missing skills/{skill_name}/SKILL.md"
-
-
-def test_skill_md_has_valid_frontmatter():
-    """Every SKILL.md must start with YAML frontmatter declaring
-    name + description (which Claude Code's auto-discovery reads to
-    decide whether to trigger the skill on a given user prompt)."""
-    for skill_name in EXPECTED_SKILLS:
-        skill_md = ROOT / "skills" / skill_name / "SKILL.md"
-        text = skill_md.read_text(encoding="utf-8")
-
-        # Must start with --- frontmatter block
-        assert text.startswith("---\n"), f"{skill_name}: SKILL.md doesn't start with frontmatter"
-
-        # Find closing --- line
-        end = text.find("\n---\n", 4)
-        assert end > 0, f"{skill_name}: SKILL.md frontmatter not closed"
-
-        frontmatter = text[4:end]
-        # name and description are required
-        assert re.search(r"^name:\s*\S+", frontmatter, re.MULTILINE), (
-            f"{skill_name}: SKILL.md frontmatter missing 'name'"
+    for name in EXPECTED_SKILLS:
+        frontmatter = _frontmatter(
+            (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
         )
-        assert re.search(r"^description:\s*\S+", frontmatter, re.MULTILINE), (
-            f"{skill_name}: SKILL.md frontmatter missing 'description'"
+        parsed_name = re.search(r"^name:\s*(\S+)\s*$", frontmatter, re.MULTILINE)
+        description = re.search(
+            r"^description:\s*(.+)$", frontmatter, re.MULTILINE
         )
-        description = re.search(r"^description:\s*(.+)$", frontmatter, re.MULTILINE)
-        assert description and description.group(1).startswith("Use when"), (
-            f"{skill_name}: description must start with 'Use when'"
-        )
-
-        # name in frontmatter should match directory name
-        m = re.search(r"^name:\s*(\S+)\s*$", frontmatter, re.MULTILINE)
-        assert m, f"{skill_name}: couldn't parse name field"
-        assert m.group(1) == skill_name, (
-            f"{skill_name}: SKILL.md frontmatter name='{m.group(1)}' "
-            f"doesn't match directory '{skill_name}'"
-        )
+        assert parsed_name and parsed_name.group(1) == name
+        assert description and description.group(1).startswith("Use when")
 
 
-def test_readme_lists_all_expected_skills():
-    """README must mention all expected skills by name so users
-    searching for a particular capability find their way in.
-    (Was originally `test_readme_lists_all_6_skills`; renamed in v0.2.2
-    after adding the 7th skill agent-plan-act-reflect.)"""
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    for skill_name in EXPECTED_SKILLS:
-        assert skill_name in readme, f"README missing reference to {skill_name}"
-
-
-def test_plugin_versions_bumped_for_context_policy_release():
-    """Adding agent-context-budget and context_policy is a public
-    interface change; versions must be ≥ 0.2.0 and synchronized
-    across plugin.json + marketplace.json metadata + marketplace
-    plugins entry. Floor-versioned to allow post-release patches
-    without test churn.
-    """
-    plugin = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+def test_manifests_are_synchronized_and_provider_neutral():
+    plugin = json.loads(
+        (ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
     marketplace = json.loads(
-        (ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
+        (ROOT / ".claude-plugin" / "marketplace.json").read_text(
+            encoding="utf-8"
+        )
     )
+    entry = marketplace["plugins"][0]
 
-    def parse_semver(v: str) -> tuple:
-        return tuple(int(x) for x in v.split("."))
+    assert plugin["name"] == entry["name"] == "agent-collab-workspace"
+    assert plugin["version"] == marketplace["metadata"]["version"] == VERSION
+    assert entry["version"] == VERSION
+    assert entry["source"]["url"].endswith("agent-collab-skills.git")
+    assert entry["source"]["ref"] == "main"
 
-    floor = parse_semver("0.2.0")
+    active_text = json.dumps([plugin, marketplace], ensure_ascii=False).lower()
+    assert "7 provider-neutral skills" in active_text or "7 multi-agent" in active_text
+    assert "gemini" not in active_text
 
-    plugin_v = parse_semver(plugin["version"])
-    marketplace_meta_v = parse_semver(marketplace["metadata"]["version"])
-    marketplace_plugin_v = parse_semver(marketplace["plugins"][0]["version"])
 
-    assert plugin_v >= floor, f"plugin.json version {plugin['version']} < 0.2.0"
-    assert marketplace_meta_v >= floor
-    assert marketplace_plugin_v >= floor
+def test_readmes_and_installers_list_every_active_skill():
+    surfaces = [
+        ROOT / "README.md",
+        ROOT / "README.zh-TW.md",
+        ROOT / "scripts" / "install-all.sh",
+        ROOT / "scripts" / "install-all.ps1",
+    ]
+    for path in surfaces:
+        text = path.read_text(encoding="utf-8")
+        for name in EXPECTED_SKILLS:
+            assert name in text, f"{path.name} is missing {name}"
 
-    # All three must be synchronized (don't let them drift apart)
-    assert plugin_v == marketplace_meta_v == marketplace_plugin_v, (
-        f"Version drift: plugin.json={plugin['version']}, "
-        f"marketplace.metadata={marketplace['metadata']['version']}, "
-        f"marketplace.plugins[0]={marketplace['plugins'][0]['version']}"
+
+def test_marketplace_contains_one_source_repo_bundle():
+    data = json.loads(
+        (ROOT / ".claude-plugin" / "marketplace.json").read_text(
+            encoding="utf-8"
+        )
     )
-
-
-def test_install_scripts_present():
-    """install-all helper scripts exist for both shells."""
-    assert (ROOT / "scripts" / "install-all.sh").exists()
-    assert (ROOT / "scripts" / "install-all.ps1").exists()
+    assert data["name"] == "agent-collab-skills"
+    assert len(data["plugins"]) == 1
+    assert data["plugins"][0]["source"]["source"] == "url"

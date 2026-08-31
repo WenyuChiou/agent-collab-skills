@@ -1,4 +1,9 @@
-# Measured Benefits — what `agent-collab-skills` actually saves
+# Historical measured benefits — pre-0.4 dogfood
+
+> Historical evidence only. Provider names, task routing, fixed summary sizes,
+> and install recommendations below describe the 2026-05 experiment and are
+> not current 0.4 instructions. See `README.md` and
+> `docs/public-harness-contract.md` for the active provider-neutral contract.
 
 > Honest dogfood report based on 1 production session (2026-05-14,
 > awesome-agentic-ai-zh plain-language refactor, **6 rounds × 9 tasks**).

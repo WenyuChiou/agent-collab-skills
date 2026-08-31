@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "policy_id": "example-policy",
+  "human_authorization": {
+    "key_hashes": {}
+  },
+  "limits": {
+    "max_cycles": 3,
+    "max_tool_calls": 20,
+    "max_elapsed_seconds": 600,
+    "checkpoint_transcript_bytes": 100000,
+    "max_transcript_bytes": 200000,
+    "max_same_failure_retries": 2,
+    "max_no_evidence_cycles": 2,
+    "max_children_per_parent": 4,
+    "max_concurrency": 2,
+    "max_task_packet_tokens": 2000,
+    "max_parent_summary_tokens": 1000,
+    "max_memory_digest_tokens": 500,
+    "max_child_result_words": 250
+  }
+}

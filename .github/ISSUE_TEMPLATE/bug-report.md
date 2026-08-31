@@ -7,9 +7,9 @@ labels: bug
 
 ## Which skill?
 
-- `agent-task-splitter` / `agent-output-reconciler` / `agent-debate` / `agent-shared-memory` / `agent-acceptance-gate`
+- `agent-task-splitter` / `agent-context-budget` / `agent-plan-act-reflect` / `agent-output-reconciler` / `agent-debate` / `agent-shared-memory` / `agent-acceptance-gate`
 
-## What did you ask Claude to do?
+## What did you ask the primary agent to do?
 
 ```
 <paste the prompt or describe the request>
@@ -25,15 +25,16 @@ labels: bug
 
 ## Multi-agent context
 
-- Were `codex-delegate` / `gemini-delegate-skill` involved? (yes / no)
-- Did the delegate skills' `result.json` files exist when you invoked the broken skill?
+- Which provider-neutral roles and host adapters were involved?
+- Did each task's result and evidence references exist when you invoked the broken skill?
 - Round number (from `.coord/plan.yml`):
 
 ## Environment
 
-- Claude Code version: `claude --version`
+- Host and plugin version:
 - OS:
-- `codex --version` / `gemini --version` (if relevant):
+- Role-adapter versions (if relevant):
+- `agent-collab doctor --json` output:
 
 ## Reproduction
 

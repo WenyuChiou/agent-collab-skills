@@ -1,76 +1,39 @@
-# Reconciliation Report: Auth Provider Refactor
+# Reconciliation evidence — round 1
 
-**Goal:** Refactor `src/auth/` from monolithic `legacy.py` into a
-plugin-based provider architecture while preserving stable entry points.
+**Goal:** Refactor the auth package while preserving its public contract.
+**Plan:** `examples/plan.yml.sample`
+**Checkpoint:** `.coord/checkpoint_001.json`
+**Policy:** `public-agent-policy@<policy-hash>`
 
-**Timestamp (UTC):** 2026-04-28T10:30:00Z
+## Task inventory
 
-**Task Count by Agent:**
-- claude: 1
-- codex: 2
-- gemini: 1
+### T1 — reviewer — define-auth-contract
+- **Status:** success
+- **Evidence:** `.ai/result_001_define-auth-contract.md`
+- **Verification:** verified against `tests/auth/`
 
-**Context policy:** summaries <= 250 words; raw logs path-only.
+### T2 — delegated-executor — refactor-auth-provider
+- **Status:** failed
+- **Evidence:** `.ai/log_002_refactor-auth-provider.txt.result.json`
+- **Verification:** required compatibility test failed
 
----
+### T3 — synthesizer — summarize-evidence
+- **Status:** missing
+- **Evidence:** none; dependency T2 failed
+- **Verification:** not run
 
-## Per-task summary
+## Filtered or missing results
 
-### T1 - claude - define-auth-contract
-- Status: success
-- Output: in-conversation contract decision
-- Scope: provider interface, registry shape, legacy compatibility
-- Risks: none blocking
-
-### T2 - codex - scaffold-provider-core
-- Status: success
-- Output: `.ai/codex_result_001_scaffold-provider-core.md`
-- Files: `src/auth/interfaces.py`, `src/auth/registry.py`,
-  `src/auth/__init__.py`, `src/auth/legacy.py`,
-  `tests/auth/test_registry.py`
-- Tests: `python -m pytest tests/auth/test_registry.py` passed;
-  `python -m mypy src/auth/interfaces.py src/auth/registry.py` passed
-- Risks: compatibility imports must remain stable through T4
-
-### T3 - gemini - audit-legacy-surface
-- Status: success
-- Output: `.ai/gemini_result_001_audit-legacy-surface.md`
-- Findings: constructor signatures and exception behavior are the
-  migration-sensitive surfaces; direct `legacy.py` dependencies are
-  limited to auth tests and compatibility imports
-- Risks: provider split must preserve exception types
-
-### T4 - codex - split-providers-and-shims
-- Status: fallback
-- Output: `.ai/codex_result_001_split-providers-and-shims.md`
-- Files: `src/auth/providers/*`, `src/auth/legacy.py`,
-  `tests/auth/test_legacy_compat.py`, `tests/auth/test_providers.py`
-- Tests: `python -m pytest tests/auth/test_providers.py tests/auth/test_legacy_compat.py`
-  failed on one legacy constructor assertion
-- Risks: high - compatibility shim needs retry
-
----
+- T3 was not passed to synthesis because its dependency failed. The missing
+  status is retained and is not converted to an empty success.
 
 ## Cross-task analysis
 
-### Agreement
-- T1's contract matches T2's registry scaffold.
-- T3's compatibility audit identifies the same legacy surfaces T4
-  attempted to preserve.
-- No task reports a need to change files outside its declared scope.
+- T1 requires the legacy constructor path to remain stable.
+- T2's test evidence contradicts that requirement.
+- Raw logs remain at the referenced path and are not pasted here.
 
-### Conflicts
-- T4 conflicts with the T1 compatibility rule: one legacy constructor
-  assertion fails.
-- No file-level conflict between parallel tasks was detected.
+## Recommended next action
 
-### Aggregated risks
-1. High: T4 did not preserve one legacy constructor path.
-2. Medium: provider exception behavior should be rechecked after retry.
-
-## Recommended action
-
-Retry T4 with an explicit constraint to preserve the failing legacy
-constructor. Do not merge the provider split until
-`tests/auth/test_legacy_compat.py` passes. T1, T2, and T3 are usable as
-inputs for the retry.
+Send this report to the acceptance gate. Do not retry until policy allows it;
+do not merge while the compatibility criterion is failing.

@@ -1,244 +1,130 @@
 # Preset: multi-locale-mirror-sync
-# Use when: zh-TW canonical was synced to en + zh-Hans (or any
-# locale fan-out). This is the most common acceptance pattern for
-# curriculum / docs / catalog work.
-#
-# Invocation:
-#   agent-acceptance-gate --preset=multi-locale-mirror-sync \
-#     --stem=stages/06-memory-rag \
-#     --required-terms="agentmemory,mem0,Letta,ragas,DSPy"
-#
-# Origin: codified after Stage 6 (awesome-agentic-ai-zh, 2026-05-13)
-# dogfooding round that found 5+ issues per round via manual grep.
-# See docs/observed-failure-modes.md F1-F4, F8.
+# Structural verification for any two or more locale variants.
 
 preset_name: multi-locale-mirror-sync
 description: |
-  Standard verification after a delegate (typically Gemini) syncs
-  zh-TW canonical to en + zh-Hans mirrors. Enforces 3-locale
-  lockstep, table-structure preservation, banned-phrase audit,
-  anchor validity.
+  Verify that an explicit list of locale files preserves document structure,
+  required technical terms, diagrams, links, and locale-specific writing
+  contracts. This preset does not infer filenames from a fixed three-locale
+  convention and does not use line count as a translation-quality proxy.
 
 invocation_param:
-  stem:
-    description: "File stem path, e.g. 'stages/06-memory-rag'"
+  files:
+    description: "Comma-separated locale files; two or more are required."
     required: true
   required_terms:
-    description: "Comma-separated terms that must appear in all 3 locale variants"
+    description: "Comma-separated exact technical terms required in every file."
     required: false
     default: ""
-  anchor_script:
-    description: "Path to anchor-validator script (defaults to repo's scripts/check-anchors.py if present)"
+  locale_profiles:
+    description: |
+      Optional file-to-profile mapping, such as README.zh-TW.md=zh-TW.
+      A profile adds locale-specific script and terminology checks.
     required: false
-    default: "scripts/check-anchors.py"
+    default: ""
   brief_file:
     description: |
-      Path to the task brief file (used by post_brief_mtime_check to verify
-      target files were modified AFTER the brief was written — catches F13
-      Gemini liar-mode). Omit for manual / inline edits — the check is
-      skipped when this param is absent.
+      Optional task brief used to verify that claimed target writes happened
+      after execution began. Omit for primary-agent or manual edits.
     required: false
     default: ""
 
 checks:
-
   - id: file_existence
     type: files_exist
-    files:
-      - "{stem}.md"
-      - "{stem}.en.md"
-      - "{stem}.zh-Hans.md"
-
-  - id: line_parity
-    type: file_line_count
-    files:
-      - "{stem}.md"
-      - "{stem}.en.md"
-      - "{stem}.zh-Hans.md"
-    tolerance_pct: 3
-    note: "Mirrors may differ from canonical by up to ±3% due to translation expansion/compression. Bigger delta = Gemini probably dropped or duplicated a section."
+    files_param: files
+    require: all
 
   - id: h2_parity
     type: file_pattern_count
+    files_param: files
     pattern: "^## "
-    files:
-      - "{stem}.md"
-      - "{stem}.en.md"
-      - "{stem}.zh-Hans.md"
     require: same_count
-    note: "All 3 locales must have identical H2 count. Mismatch = section added/dropped during translation."
+    note: "A section added or dropped in one locale is blocking."
 
-  - id: table_column_parity
+  - id: table_structure_parity
     type: table_structure_check
-    files:
-      - "{stem}.md"
-      - "{stem}.en.md"
-      - "{stem}.zh-Hans.md"
+    files_param: files
     require: matching_column_count_per_table_index
-    note: "F2 incident: Gemini merged a 5-column table into a 3-column table. This check catches it. Compares table N in canonical to table N in each mirror."
+    note: "Translated cell text may differ; table topology may not."
 
-  - id: banned_phrases_en
-    type: pattern_absent
-    file: "{stem}.en.md"
-    patterns:
-      - "the most canonical"
-      - "Production-grade Chinese"
-      - "world.{0,3}s best"
-      - "industry.leading"
-      - "revolutionary"
-      - "game.changer"
-      - "best in class"
-    note: "Marketing-speak that snuck in via overconfident LLM translation."
+  - id: mermaid_node_parity
+    type: mermaid_structure_check
+    files_param: files
+    compare: node_ids
+    require: same_set
 
-  - id: banned_phrases_zh_hans
-    type: pattern_absent
-    file: "{stem}.zh-Hans.md"
-    patterns:
-      - "全世界最好的"
-      - "業界最強"
-      - "最緊迫"
-      - "革命性"
-      - "颠覆性"
+  - id: mermaid_edge_parity
+    type: mermaid_structure_check
+    files_param: files
+    compare: normalized_edges
+    require: same_multiset
 
-  - id: time_sensitive_phrases
+  - id: required_terms_cross_locale
+    type: pattern_present_all_files
+    files_param: files
+    patterns_param: required_terms
+    skip_when_empty: true
+
+  - id: internal_link_resolution
+    type: markdown_relative_links_exist
+    files_param: files
+    require: all
+
+  - id: stale_time_language
     type: pattern_absent
-    files:
-      - "{stem}.md"
-      - "{stem}.en.md"
-      - "{stem}.zh-Hans.md"
+    files_param: files
     patterns:
       - "pushed today"
+      - "updated today"
       - "今天已更新"
       - "今天 pushed"
       - "very recently"
-    # v0.2.2: exempt patterns inside dialogue quotes (e.g., "User said
-    # last week 'I eat vegan'" is a pedagogical example, not a repo
-    # date claim). Implementer should strip content between `"..."` /
-    # `「...」` / `'...'` before pattern match.
-    exempt_when_inside:
-      - "\"[^\"]+\""        # English double-quotes
-      - "「[^」]+」"          # 繁體中文 quotes
-      - "「[^」]+」"          # 简体中文 quotes (same chars)
-      - "'[^']+'"           # English single-quotes
-    # Patterns that became false positives in R5 dogfood
-    # ("last week" / "this week" inside user dialogue examples).
-    # These are now warnings only, not blocking failures:
-    soft_patterns:
-      - "last week"
-      - "this week"
-      - "next week"
-      - "yesterday"
-      - "tomorrow"
-    note: "F3 incident: time-relative phrasing goes stale in days. Use absolute year or 'actively maintained'. v0.2.2: pedagogical examples inside quotes are exempt; soft warnings for ambiguous cases."
+    exempt_when_inside_quotes: true
 
   - id: unrequested_attribution_lines
     type: pattern_absent
-    files:
-      - "{stem}.md"
-      - "{stem}.en.md"
-      - "{stem}.zh-Hans.md"
+    files_param: files
+    severity: warn
     patterns:
       - "^>?\\s*Attributions?:\\s*"
       - "^>?\\s*Sources?:\\s*"
       - "^>?\\s*Credits?:\\s*"
       - "^>?\\s*Citations?:\\s*"
-    severity: warn
-    note: "F12 incident: Codex inserted 'Attributions: Karpathy, Simon Willison, Addy Osmani' into mirror files unrequested. Glosses are inline explanations, not source attributions. If brief didn't ask for attribution, this is drift."
 
-  - id: meta_doc_table_preservation
-    type: pattern_preserved
-    only_when_in_diff: true
-    severity: fail
-    files:
-      - "resources/style-guide.md"
-      - "resources/style-guide.zh-Hans.md"
-      - "resources/style-guide.en.md"
-    must_contain:
-      # Literal terms that document the zh-Hans ↔ zh-TW convention.
-      # These MUST survive any sweep — they document the rule itself.
-      - "| 默認 |"
-      - "| 預設 |"
-      - "| 默认 |"
-      - "| 设置 |"
-      - "| 設定 |"
-    note: "F11 incident: Codex over-applied 默認→預設 sweep to the style-guide contrast table that DOCUMENTS the convention. If a sweep round modifies any style-guide file, this check verifies the literal documenting terms still appear in the contrast tables. only_when_in_diff: skip the check if no style-guide file was touched."
+  - id: locale_profile
+    type: locale_profile_check
+    files_param: files
+    profiles_param: locale_profiles
+    skip_when_empty: true
+    profiles:
+      zh-TW:
+        require_any:
+          - "繁體中文"
+          - "人類"
+        reject:
+          - "软件"
+          - "网络"
+          - "数据"
+      zh-Hans:
+        reject:
+          - "軟體"
+          - "網路"
+          - "資料"
 
-  - id: simplified_chinese_purity
-    type: pattern_absent
-    file: "{stem}.zh-Hans.md"
-    patterns:
-      - "使用者"
-      - "軟體"
-      - "網路"
-      - "設定"
-      - "視頻"
-      - "資料庫"
-      - "海馬迴"
-    note: "Traditional Chinese leaked into zh-Hans mirror."
-
-  - id: required_terms_cross_locale
-    type: pattern_present_all_files
-    files:
-      - "{stem}.md"
-      - "{stem}.en.md"
-      - "{stem}.zh-Hans.md"
-    patterns_param: required_terms
-    note: "Headline projects/concepts that MUST be in all 3 locales. Mismatch = mirror sync dropped content."
-
-  - id: anchor_strict
-    type: command
-    command: "python {anchor_script} --strict"
-    expect_exit: 0
-    skip_if_missing: true
-    note: "If repo has anchor-validator, run it. Otherwise skip."
-
-  - id: diff_size_subagent_threshold
-    type: diff_size_check
-    threshold_lines: 500
-    when_exceeded: recommend_subagent_review
-    note: "F8 incident: large multi-file diffs blow up main session context. ≥500 lines = mandate agent-acceptance-gate subagent pattern."
-
-  - id: cross_document_link_text_parity
-    type: link_text_matches_target_title
-    severity: warn
-    check_links_in:
-      - "README.md"
-      - "README.en.md"
-      - "README.zh-Hans.md"
-    when_link_target_matches: "^(stages|tracks|branches)/.*\\.md$"
-    require: "link_text_contains_target_h1_or_first_8_chars"
-    note: |
-      F14 incident: title was updated in tracks/cli/A1-cli-intro.md
-      from `A1 — CLI Agent 入門 + 選擇` to `A1 — 選一個 CLI Agent，開始用它做事
-      （CLI Agent Intro & Selection）`, but README.md kept the stale
-      link text `[CLI Agent 入門 + 選擇](tracks/cli/A1-cli-intro.md)`.
-      Same-stem mirror parity (the other checks above) does NOT catch
-      this cross-document drift. This check verifies every README link
-      target's H1 title intersects the README link text by ≥ 8 chars
-      or contains it verbatim. Soft severity (warn) because some
-      links intentionally use shorter aliases.
+  - id: markdown_anchor_resolution
+    type: markdown_anchor_links_resolve
+    files_param: files
+    require: all
 
   - id: post_brief_mtime_check
     type: file_mtime_after
-    severity: fail
+    files_param: files
     reference_file_param: brief_file
-    files:
-      - "{stem}.md"
-      - "{stem}.en.md"
-      - "{stem}.zh-Hans.md"
-    note: |
-      F13 incident: Gemini "liar mode" — claimed success without
-      actually editing files. This check verifies every target file
-      was modified AFTER the brief file was written. If brief mtime
-      ≥ target mtime, the delegate didn't actually edit. Skipped if
-      brief_file param not provided (manual / inline edits).
+    skip_when_empty: true
+    severity: fail
 
 failure_action: |
-  Multi-locale mirror sync acceptance failed. Common causes:
-  - Gemini dropped sections (line_parity or h2_parity FAIL)
-  - Gemini merged tables (table_column_parity FAIL)
-  - Banned/time-sensitive phrases leaked through (banned_*_phrases FAIL)
-  - Traditional → Simplified conversion incomplete (simplified_chinese_purity FAIL)
-
-  Recommended next step: re-run Gemini with the failing check echoed
-  back in the task brief as a sentinel string.
+  Preserve the failed check and evidence. Request a human-authorized targeted
+  correction, then re-run this preset only when canonical policy permits the
+  next cycle. Do not replace a FAIL with agent consensus or a manual claim.

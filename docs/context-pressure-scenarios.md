@@ -1,35 +1,49 @@
-# Context Pressure Scenarios
+# Context-pressure scenarios
 
-Use these scenarios when testing whether the skills keep multi-agent
-work bounded. They are pressure tests for behavior, not implementation
-fixtures.
+These deterministic scenarios exercise policy and checkpoint behavior without
+depending on a particular model provider.
 
-## large Codex + Gemini refactor
+## Large bounded refactor
 
-Ask for a four-task refactor with one Claude design task, two Codex
-implementation tasks, and one Gemini audit. Expected behavior:
-`agent-task-splitter` adds `context_policy`, each delegate task has a
-clear write scope, and `agent-context-budget` writes
-`.coord/context_001.md` plus `.coord/session_primer.md`.
+Create several delegated-executor tasks plus an independent reviewer. Expected:
 
-## cross-session resume with long memory
+- every spawn is preceded by policy evaluation;
+- task packets cite artifacts instead of embedding the repository;
+- each cycle updates evidence and checkpoint metrics;
+- reaching a policy boundary produces checkpoint or stop, not a silent retry.
 
-Provide a `.coord/memory.yml` with many historical decisions and ask
-for a fresh session primer. Expected behavior: the response summarizes
-current decisions, unresolved questions, recent artifacts, and recent
-sessions without pasting the whole memory file.
+## Cross-session resume
 
-## Gemini task drift
+Resume from a validated checkpoint with a long history. Expected:
 
-Give Gemini an inline task where `.ai/` is gitignored and the task body
-mentions the full plan. Expected behavior: `agent-output-reconciler`
-checks task ID, slug, and agent assignment against `.coord/plan.yml`
-and flags drift as high severity instead of treating the report as
-valid evidence.
+- the primary agent loads only current scope, decisions, and evidence refs;
+- raw logs stay path-only;
+- canonical memory is not used as a substitute for repository state;
+- unreadable checkpoint or mismatched policy hash fails closed.
 
-## agentmemory unavailable
+## Executor drift
 
-Ask for cross-session recall while `agentmemory` is not installed or
-not reachable. Expected behavior: the workflow continues using
-`.coord/memory.yml`; optional recall is skipped and acceptance decisions
-still depend only on `.coord/` artifacts and verification commands.
+Give an executor a task packet with explicit scope and inject an out-of-scope
+change. Expected:
+
+- reconciler preserves the executor's result but flags the path;
+- acceptance gate returns FAIL;
+- no automatic retry or commit occurs.
+
+## Optional recall unavailable
+
+Run with a configured recall cache unavailable. Expected:
+
+- canonical files and checkpoint evidence remain authoritative;
+- optional recall is reported as degraded or skipped;
+- acceptance decisions are never reconstructed from cache.
+
+## Failed structured conversion
+
+Provide valid researcher prose followed by a failed optional structuring step.
+Expected:
+
+- the prose result remains available;
+- the failed structured payload is filtered and recorded;
+- synthesizer or human review may retry only if policy permits;
+- the result never becomes an unexplained `null`.

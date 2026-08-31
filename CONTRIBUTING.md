@@ -1,129 +1,75 @@
 # Contributing
 
-This is a single-source marketplace + plugin bundle. Both the
-marketplace config (`.claude-plugin/marketplace.json`) and the 6 skills
-live in this one repo. Unlike `ai-research-skills` (5 upstream source
-repos coordinated via a catalog), here all changes go in one PR.
+Agent Collab has two public surfaces that must move together:
 
-## Where the change belongs
+1. the seven skills under `skills/`;
+2. the `agent-collab-harness` Python package and `agent-collab` CLI.
 
-| Change | File(s) |
-|---|---|
-| Modify a skill's behavior or prompt | `skills/<name>/SKILL.md` |
-| Reference content (templates, schemas, heuristics) | `skills/<name>/references/*.md` |
-| Add a new skill to the bundle | `skills/<new-name>/SKILL.md` + bump `metadata.version` in `marketplace.json` and `version` in `.claude-plugin/plugin.json` |
-| Marketplace config | `.claude-plugin/marketplace.json` |
-| Bundle plugin metadata | `.claude-plugin/plugin.json` |
-| End-user install / how-to-use docs | `README.md` |
-| Marketplace internals doc | `.claude-plugin/README.md` |
-| Test invariants | `tests/test_catalog.py` |
+## Contracts
 
-## Interop contract — read before modifying
+- Use provider-neutral roles: `primary-agent`, `delegated-executor`,
+  `reviewer`, and `synthesizer`.
+- Keep numeric limits in one canonical machine-readable policy. Skill prose,
+  samples, and host adapters must not copy policy defaults.
+- Treat `.coord/` and `.ai/` as scratch. Only explicitly promoted checkpoint,
+  shipping, or acceptance artifacts belong in version control.
+- Memory output is proposal-only. Canonical changes require a recorded human
+  decision and append a new immutable event.
+- Preserve declined, cancelled, timeout, degraded, failed, and missing states.
+  Never normalize them to success.
+- Configured policy failures are fail closed. No silent retry, provider/model
+  switch, or context discard.
 
-The 6 skills share a contract. Breaking any part of it can silently
-corrupt multi-agent runs. The contract has 3 layers:
+See `docs/public-harness-contract.md` and `docs/migration-0.4.md` before changing
+schemas or behavior.
 
-### 1. The `.coord/` directory schema
+## Skill changes
 
-All 6 skills read/write a shared `.coord/` directory at the user's
-project root. Files inside:
+Every `SKILL.md` must:
 
-| File | Owner skill | Format | Lifetime |
-|---|---|---|---|
-| `.coord/plan.yml` | `agent-task-splitter` | YAML, mutable | per-goal |
-| `.coord/context_<NNN>.md` | `agent-context-budget` | Markdown | per-round |
-| `.coord/session_primer.md` | `agent-context-budget` | Markdown | persistent |
-| `.coord/memory.yml` | `agent-shared-memory` | YAML, append-only | persistent |
-| `.coord/reconciliation_<NNN>.md` | `agent-output-reconciler` | Markdown | per-round |
-| `.coord/debate_<topic>.md` | `agent-debate` | Markdown | per-decision |
-| `.coord/acceptance_<NNN>.md` | `agent-acceptance-gate` | Markdown | per-round |
+- have valid YAML frontmatter;
+- use a directory-matching `name`;
+- start its description with `Use when`;
+- state inputs, outputs, policy boundary, and prohibited mutations;
+- avoid provider-specific routing in the public contract.
 
-The number `<NNN>` is the `round` field from `plan.yml`. The full
-schemas are in `skills/<owner-skill>/references/*.md`.
+Run the skill validator for every changed skill directory.
 
-**If you change the schema:**
-- Update the canonical reference markdown for the owner skill.
-- Update every consumer skill's SKILL.md that reads the changed file.
-- Bump version (semver: schema break = major bump).
-- Document the migration path in this CONTRIBUTING.md (or open an
-  issue for discussion first).
+## Package changes
 
-### 2. The delegate-skill handoff format
+The runtime remains standard-library first and supports Python 3.10 or newer.
+Keep CLI commands and exit codes stable unless a migration and rollback path are
+approved:
 
-`agent-task-splitter` writes `.ai/codex_task_<NNN>_<slug>.md` and
-`.ai/gemini_task_<NNN>_<slug>.md` files. The format must match what
-`codex-delegate` and `gemini-delegate-skill` expect:
+- `agent-collab policy validate`
+- `agent-collab policy evaluate`
+- `agent-collab checkpoint validate`
+- `agent-collab doctor`
 
-- Sections: `Context`, `Goal`, `Constraints`, `Acceptance`
-- File naming: `<agent>_task_<NNN>_<slug>.md` where `<NNN>` is
-  zero-padded round number, `<slug>` is kebab-case task ID.
-- See `codex-delegate/skills/codex-delegate/SKILL.md` "Supervisor
-  Workflow" section for the canonical template.
+Reference JSON schemas and programmatic validators must agree on fields and
+local structural constraints. The CLI validator is authoritative for semantic
+rules that Draft 2020-12 cannot express, including cross-field ordering and
+unique override limits. Reject duplicate JSON keys and unexpected fields.
 
-`agent-output-reconciler` reads `<log-file>.result.json` produced
-by the delegate skills' wrappers. Schema fields:
-
-- `status`, `delegate`, `model`, `log_file`, `output_file`, `summary`,
-  `risks`, `files_changed`, `tests_run`, `timestamp_utc`
-
-If you add fields, the reconciler skill must handle missing fields
-gracefully (older runs won't have new fields).
-
-**If `codex-delegate` or `gemini-delegate-skill` change their
-contract:** open a coordination issue here so the splitter +
-reconciler skills can update in lockstep. Drift breaks multi-agent
-runs silently.
-
-### 3. The Claude / Codex / Gemini routing heuristics
-
-`agent-task-splitter` decides which agent gets each subtask. The
-heuristics live in `skills/agent-task-splitter/references/task_splitter_heuristics.md`.
-If you change them, also update:
-
-- `skills/agent-task-splitter/SKILL.md` examples
-- `README.md` "How they compose" section if the routing table changes
-
-## Local development
+## Tests
 
 ```bash
-git clone https://github.com/WenyuChiou/agent-collab-skills
-cd agent-collab-skills
-python -m pytest tests/ -q
+python -m pip install -e .
+python -m pytest -q
+python -m compileall -q src
+agent-collab doctor --json
 ```
 
-Tests guard:
-- `marketplace.json` structure (exactly 1 plugin, name + source +
-  required fields).
-- `plugin.json` structure (name, description, version, license).
-- Every skill named in the marketplace has a `skills/<name>/SKILL.md`
-  file present on disk.
-- Every SKILL.md has valid YAML frontmatter with `name` + `description`.
+For bilingual changes, verify English and zh-TW terminology and structural
+parity. For catalog, locale, or factual benchmark changes, run the matching
+acceptance preset as well as independent review.
 
-## Adding a new skill
+## Pull requests
 
-1. `skills/<new-name>/SKILL.md` with YAML frontmatter (`name`,
-   `description`).
-2. Reference files in `skills/<new-name>/references/` if needed.
-3. Bump version in `marketplace.json` and `plugin.json`.
-4. Update the table in `README.md` and `README.zh-TW.md`.
-5. Update `tests/test_catalog.py` skill list.
-6. Run `python -m pytest tests/`.
-7. Smoke test:
-   ```bash
-   claude plugin marketplace remove agent-collab-skills
-   claude plugin marketplace add WenyuChiou/agent-collab-skills
-   claude plugin install agent-collab-workspace@agent-collab-skills
-   claude plugin list
-   ```
-
-## For maintainers: GitHub repo settings
-
-```bash
-gh api -X PATCH repos/WenyuChiou/agent-collab-skills \
-  -f description="..." \
-  -f homepage="..."
-
-gh api -X PUT repos/WenyuChiou/agent-collab-skills/topics \
-  -f 'names[]=multi-agent' -f 'names[]=claude-code' \
-  -f 'names[]=codex' -f 'names[]=gemini' -f 'names[]=orchestration'
-```
+- Use a focused branch and preserve unrelated worktree changes.
+- Stage explicit paths only.
+- Report exact commands, pass/fail/skip counts, environment, duration, and
+  commit SHA.
+- Document schema migrations and rollback.
+- Do not merge, release, tag, or delete branches from an implementation task
+  unless the authorized maintainer explicitly owns that gate.
