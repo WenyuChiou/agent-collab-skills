@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "task_id": "T1",
+  "role": "reviewer",
+  "status": "success",
+  "started_at": "2026-08-31T00:00:00Z",
+  "ended_at": "2026-08-31T00:02:00Z",
+  "files_changed": [],
+  "evidence_refs": [
+    ".ai/result_001_define-auth-contract.md",
+    ".ai/log_001_define-auth-contract.txt"
+  ],
+  "tests_run": [],
+  "risks": [],
+  "blockers": []
+}

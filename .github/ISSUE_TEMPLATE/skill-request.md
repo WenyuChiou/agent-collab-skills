@@ -1,6 +1,6 @@
 ---
 name: Skill request
-about: Propose a 6th skill for the bundle, or extending an existing one.
+about: Propose extending one of the seven skills, or justify a new bounded skill.
 title: "[skill-request] "
 labels: enhancement
 ---
@@ -11,7 +11,7 @@ labels: enhancement
 gap in the splitter → delegate → reconciler → gate pipeline, or
 orthogonal?>
 
-## Why don't the existing 5 skills cover it?
+## Why don't the existing seven skills cover it?
 
 <which skill is closest, and what it doesn't do>
 
@@ -20,9 +20,9 @@ orthogonal?>
 - **Skill name:** `<proposed-name>` (must start with `agent-` for naming consistency in this bundle)
 - **Trigger phrases** (3-5 examples):
   - "..."
-- **Input** (which `.coord/` files? user prompt? other agent output?):
-- **Output** (which `.coord/` file does it write? does it touch `.ai/`?):
-- **Composes with** (which other skills in the bundle / which delegate skills):
+- **Input** (which checkpoint, policy, task packet, or evidence references?):
+- **Output** (scratch, shipping artifact, acceptance evidence, or memory proposal?):
+- **Composes with** (which other skills / provider-neutral roles / host adapters):
 - **Prerequisites** (CLI binary, `result.json` from prior agent run, etc.):
 
 ## Should it extend an existing skill or be a new one?

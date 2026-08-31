@@ -1,293 +1,121 @@
 ---
 name: agent-shared-memory
-description: Use when the user asks to update shared memory, initialize multi-agent memory, summarize decisions so far, identify open questions, or prepare a fresh session primer.
+description: Use when a user asks to inspect coordination memory, propose a durable decision or resolution, review pending memory proposals, or apply an explicitly approved proposal as a new append-only event.
 ---
 
 # agent-shared-memory
 
-The persistent blackboard between Claude session A, Codex session
-B, and Gemini session C — none of which see each other's
-conversation history natively.
+Coordinate durable facts without letting an agent silently rewrite project
+memory. Read the event schema in references/coord_memory_schema.md before
+creating or applying a proposal.
 
-`.coord/memory.yml` is **append-only**. Past decisions don't get
-edited; they get superseded by new entries that reference what they
-replace. This makes it an audit trail, not a mutable scratchpad.
+## Authority
 
-## When to use
+Repository state, current evidence, and recorded human decisions outrank memory.
+Recall systems are optional caches.
 
-Trigger phrases:
+All memory mutations start as proposals:
 
-- "Update the shared memory with `<decision>`."
-- "Log this open question to shared memory."
-- "What have agents decided so far on this project?"
-- "What are the open questions blocking us?"
-- "Initialize multi-agent shared memory for this project."
-- "Give me a primer for a fresh agent session."
+    .coord/memory-proposals/<proposal-id>.json
 
-Not for:
+Without an explicit human approve decision, do not add, supersede, archive,
+delete, overwrite, or compact canonical memory.
 
-- Per-task scratch (use `.ai/<agent>_task_*.md` from
-  `agent-task-splitter`).
-- Per-round artifacts (use the round-specific files written by
-  reconciler / acceptance-gate).
-- Project-level long-term context (use `.research/project_manifest.yml`
-  from `research-context-compressor`, or `.paper/claims.yml` from
-  `paper-memory-builder`).
+## Modes
 
-`.coord/memory.yml` is specifically the **multi-agent coordination
-layer** — short-to-medium-term decisions made during a multi-agent
-work cycle.
+### Read
 
-For large or cross-session work, pair this with `agent-context-budget`
-to produce `.coord/session_primer.md`. The primer is the bounded
-session input; `memory.yml` remains the append-only source.
+Read canonical events and return:
 
-## Schema
+- current decisions, following supersedes references
+- unresolved questions
+- relevant artifact/evidence pointers
+- recent execution outcomes
+- conflicts or stale claims
 
-Full schema in `references/coord_memory_schema.md`. Quick view:
+Do not load raw agent logs into the primary session. Follow their stable paths
+only when needed.
 
-```yaml
-project: "<repo name or research project slug>"
-created_utc: "2026-04-28T09:00:00Z"
+### Propose
 
-decisions:
-  - id: D1
-    date_utc: "2026-04-28T10:30:00Z"
-    what: "Use SQLite for shared session state, not Redis"
-    why: "Already a project dep; Redis would add infra"
-    made_by: "claude"             # which agent / human made it
-    supersedes: []                 # IDs of prior decisions this replaces
-  - id: D2
-    date_utc: "2026-05-02T14:00:00Z"
-    what: "Switch to LMDB for shared session state"
-    why: "SQLite is locking under concurrent writes from N agents"
-    made_by: "user"
-    supersedes: [D1]              # D1 is now historical, not current
+Create a proposal with:
 
-open_questions:
-  - id: Q1
-    asked_utc: "2026-04-28T11:00:00Z"
-    question: "Should we cache LLM responses?"
-    blocker_for: ["T5", "T7"]    # task IDs from .coord/plan.yml
-    suggested_next_agent: "claude"
-    resolved_by: null              # set to a decision ID when answered
-  - id: Q2
-    asked_utc: "2026-04-30T09:00:00Z"
-    question: "What's the upper bound on concurrent agent sessions?"
-    blocker_for: []
-    suggested_next_agent: "user"
-    resolved_by: D2                # D2's switch to LMDB resolved this
+    {
+      "schema_version": 1,
+      "proposal_id": "<uuid>",
+      "source_task": "<task id>",
+      "action": {
+        "operation": "add | supersede | archive | delete",
+        "target_ref": null,
+        "summary": "<compact proposed event>",
+        "evidence_refs": ["<stable ref>"]
+      },
+      "state": "proposed",
+      "created_at": "<ISO 8601>",
+      "decision": null
+    }
 
-artifacts:
-  - path: ".coord/plan.yml"
-    round: 1
-    produced_by: "agent-task-splitter"
-    used_by: ["codex-delegate", "gemini-delegate"]
-    timestamp_utc: "2026-04-28T09:30:00Z"
-  - path: ".coord/reconciliation_001.md"
-    round: 1
-    produced_by: "agent-output-reconciler"
-    used_by: ["agent-acceptance-gate"]
-    timestamp_utc: "2026-04-28T11:45:00Z"
+Supersede, archive, and delete require a specific `action.target_ref`. A
+proposal with no `action.evidence_refs` remains pending and must not be applied.
+The `action` object is immutable. Its canonical JSON bytes, not the mutable
+proposal envelope, are the approval payload.
 
-agent_history:
-  - agent: codex
-    session_id: "abc123"
-    started_utc: "2026-04-28T10:00:00Z"
-    ended_utc: "2026-04-28T10:25:00Z"
-    output_summary: ".ai/codex_result_001_extract-interfaces.md"
-    status: "success"
-  - agent: gemini
-    session_id: "def456"
-    started_utc: "2026-04-28T10:30:00Z"
-    ended_utc: "2026-04-28T11:15:00Z"
-    output_summary: ".ai/gemini_result_001_review-doc-coverage.md"
-    status: "success"
-```
+### Decide
 
-## Workflow
+Only a human may approve, decline, or revise a proposal. Record:
 
-### Read mode: produce a primer
+- actor
+- decision
+- timestamp
+- rationale
+- affected proposal/action hash
+- HMAC authorization from the trusted host
 
-When a new agent session starts (or the user asks "what's the
-state?"), generate a digest:
+Decline and timeout remain non-success. A revise decision creates or updates a
+proposal; it is not approval.
 
-```markdown
-[agent-shared-memory] Project state — <project>
+### Apply
 
-Current decisions (3):
-  D2 (2026-05-02): Switch to LMDB for shared session state.
-       (supersedes D1: SQLite chosen on 2026-04-28)
-  D3 (2026-05-04): Use plugin-based auth architecture.
-  D4 (2026-05-05): Acceptance gate runs pytest + banned-word audit.
+Apply only a proposal whose recorded state is approved and whose immutable
+`action` bytes still match `decision.affected_action_hash`. Decision metadata
+and state are outside that hashed payload, so recording approval does not
+invalidate the approval hash.
+The decision uses the same `hmac-sha256` authorization boundary as checkpoint
+human records. Do not expose the signing secret to a delegated executor.
 
-Historical (superseded):
-  D1 (2026-04-28): SQLite for shared session state. Replaced by D2.
+Application appends one immutable event to .coord/memory.yml. It does not edit
+the target event:
 
-Open questions (1):
-  Q1: Should we cache LLM responses?
-       Blocking: T5 (codex), T7 (gemini).
-       Suggested next: claude.
+It never edits an existing event; a resolution, correction, or supersession is
+a new append-only event.
 
-Last 3 agent sessions:
-  2026-05-04 codex   T8 refactor-config       success
-  2026-05-04 claude  T9 review-architecture   success
-  2026-05-03 gemini  T6 long-context-review   fallback (test failure)
+- Superseding a decision appends a new decision event with supersedes.
+- Resolving a question appends a resolution event with resolves.
+- Archiving or deleting appends a lifecycle event referencing target_ref.
+- Canonical removal, compaction, or physical deletion requires a separate
+  repository-specific retention decision.
 
-Files most recently produced:
-  .coord/acceptance_002.md (2026-05-04, agent-acceptance-gate)
-  .coord/reconciliation_002.md (2026-05-04, agent-output-reconciler)
-```
+## Coordination scope
 
-If `.coord/memory.yml` doesn't exist yet, say so and offer to
-initialize.
+Use this memory for agent coordination decisions, questions, artifact pointers,
+and execution outcomes. Research truth belongs in research evidence stores;
+paper claims belong in the paper's claim/evidence contract.
 
-### Append mode: log a new entry
+## Artifact policy
 
-User says "log this decision to memory: we picked LMDB over SQLite
-because of concurrent-write issues."
+.coord/ is scratch and gitignored by default. Do not commit every proposal or
+agent boundary. Promote only an explicitly selected checkpoint snapshot,
+shipping artifact, or acceptance record into a repository-owned evidence path.
 
-1. Read existing `.coord/memory.yml` (or initialize if missing).
-2. Determine which list to append to (decision / open question /
-   artifact / agent_history).
-3. Generate a new ID (`D<N+1>` for decisions, `Q<N+1>` for
-   questions).
-4. If this supersedes prior entries, fill `supersedes`.
-5. Atomic write: rewrite the whole file with the new entry
-   appended. Use a `.coord/memory.yml.lock` file to prevent
-   concurrent writes corrupting the YAML:
+## Output
 
-   ```bash
-   # Check lock
-   if [ -f .coord/memory.yml.lock ]; then
-     echo "memory.yml is being updated by another agent — wait or check stale lock"
-     exit 1
-   fi
-   touch .coord/memory.yml.lock
-   # ... write memory.yml ...
-   rm .coord/memory.yml.lock
-   ```
+Always report:
 
-   Locks older than 5 minutes are stale (agent crashed) — safe to
-   remove.
+- mode: read, propose, decide, or apply
+- proposal/event id
+- state
+- evidence refs
+- whether canonical memory changed
+- human decision still required
 
-### Initialize mode
-
-If `.coord/memory.yml` doesn't exist, ask user for `project` name
-and `created_utc`, then write a minimal skeleton:
-
-```yaml
-project: "<name>"
-created_utc: "2026-04-28T09:00:00Z"
-decisions: []
-open_questions: []
-artifacts: []
-agent_history: []
-```
-
-Append `.coord/` to `.gitignore` if not already (this is multi-agent
-state, not project source — versioning the YAML in git is the user's
-choice; default is gitignore + manual snapshot when valuable).
-
-### Promotion rules
-
-Only promote compact coordination facts:
-
-- Decisions: one-sentence `what` and one-sentence `why`.
-- Open questions: one sentence, blocker, suggested owner.
-- Artifacts: relative path plus one-line summary.
-- Agent sessions: agent, task ids, status, and result-summary path.
-
-Do not promote raw logs, full diffs, source code, long analysis, or
-secrets. If a detail is longer than a few sentences, write an artifact
-file and store only its path plus summary.
-
-### Optional agentmemory mirror
-
-If `agentmemory` is installed, mirror only memory candidates that pass
-the promotion rules. Treat agentmemory as a searchable cache:
-
-- `.coord/memory.yml` is canonical.
-- `agentmemory` recall may enrich `.coord/session_primer.md`.
-- Missing or failed agentmemory never blocks the workflow.
-- Acceptance decisions must never depend on vector recall alone.
-
-## Output to user
-
-Read mode → digest as shown above.
-
-Append mode:
-```
-[agent-shared-memory] Appended D5 to .coord/memory.yml:
-  D5 (2026-05-08): Adopt LMDB lock-free reads for query path.
-       Why: profiling showed read contention bottleneck.
-       Supersedes: D4 (which assumed SQLite + WAL was enough).
-       Made by: codex (during T12 review session).
-```
-
-Initialize:
-```
-[agent-shared-memory] Initialized .coord/memory.yml for project "ai-research-skills".
-  Empty: 0 decisions, 0 open questions, 0 artifacts, 0 sessions.
-  Add .coord/ to .gitignore (recommended) or commit (if you want
-  audit trail in version control).
-```
-
-## What NOT to do
-
-- **Don't edit existing entries.** They're append-only. To "change"
-  a decision, write a new one with `supersedes: [<old-id>]`.
-- **Don't read full agent log files.** This skill operates on
-  summaries (the `output_summary` paths). The reconciler reads
-  logs.
-- **Don't make memory a transcript.** Promote decisions, open
-  questions, artifact pointers, and session outcomes only.
-- **Don't store secrets.** Memory.yml is YAML in the project repo
-  — assume any contributor can read it.
-- **Don't cross domains.** This is for **multi-agent coordination
-  state**, not research project state (`.research/`) or paper
-  state (`.paper/`).
-- **Don't use this for agents that don't share a project root.**
-  If Codex is running in `/repo-A` and Claude is in `/repo-B`,
-  they have separate `.coord/memory.yml` files. This skill operates
-  per-project.
-
-## Subagent review (keep main session lean)
-
-**When**: `.coord/memory.yml` exceeds 50 entries OR 30 KB, OR a new
-agent session is about to load memory as primer.
-
-**Why**: As memory grows, reading it inline in every session is
-costly. A subagent can pre-digest memory into a compact session
-primer so the main session only ingests recent + relevant entries,
-not the full history.
-
-**Pattern**:
-
-```
-Spawn `general-purpose` subagent (read-only) with:
-  - Read .coord/memory.yml in full
-  - Filter to: (a) entries from last 14 days; (b) entries tagged
-    as `principle` or `decision`; (c) entries referenced by the
-    current round's plan.yml
-  - Compose memory digest (≤ memory_digest_token_budget from
-    context_policy, default 1200 tokens)
-  - Return: digest text suitable to paste into session primer +
-    promotion-candidate flags (entries that could move to a long-
-    term principles file)
-
-Main session uses the digest instead of reading memory.yml directly.
-```
-
-Compaction-by-promotion: if subagent flags entries as long-term
-principles, run a follow-up step to move them out of `memory.yml`
-into a separate principles file, keeping `memory.yml` bounded.
-
-## Commit Boundary
-
-Every agent boundary is a commit boundary (see global rule:
-~/.claude/CLAUDE.md → "Commit Discipline for Multi-Agent Work"). This
-makes multi-agent work auditable (commit log = agent log) and enables
-surgical rollback via `git revert <hash>` of just one agent's commit.
-
-**Specific to this skill**: every promotion to `.coord/memory.yml` is its own commit with message `memory: <decision-summary>`. The acceptance-gate skill diffs memory commits to detect inconsistent decisions across agents.
+Never report an unapproved proposal as a canonical decision.

@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-collab-harness"
+version = "0.4.0"
+description = "Provider-neutral policy and checkpoint contracts for bounded agent collaboration."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{name = "Wenyu Chiou"}]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = []
+
+[project.optional-dependencies]
+test = [
+  "jsonschema>=4.23",
+  "pytest>=8",
+  "pyyaml>=6",
+]
+
+[project.scripts]
+agent-collab = "agent_collab_harness.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+agent_collab_harness = ["schemas/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,214 +1,128 @@
+"""Provider-neutral workflow, scratch, and policy-source invariants."""
+
 from pathlib import Path
+
+import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
+ACTIVE_SURFACES = [
+    ROOT / ".claude-plugin" / "plugin.json",
+    ROOT / ".claude-plugin" / "marketplace.json",
+    ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md",
+    ROOT / ".github" / "ISSUE_TEMPLATE" / "skill-request.md",
+    ROOT / ".github" / "ISSUE_TEMPLATE" / "bug-report.md",
+    ROOT / "scripts" / "install-all.sh",
+    ROOT / "scripts" / "install-all.ps1",
+    ROOT / "examples" / "plan.yml.sample",
+    ROOT / "examples" / "reconciliation_001.md.sample",
+    ROOT / "examples" / "acceptance_001.md.sample",
+]
 
 
-def test_sample_plan_declares_context_policy_defaults():
-    sample = (ROOT / "examples" / "plan.yml.sample").read_text(encoding="utf-8")
+def test_plan_sample_uses_roles_and_policy_checkpoint_references():
+    plan = yaml.safe_load((ROOT / "examples" / "plan.yml.sample").read_text())
+    assert plan["schema_version"] == 2
+    assert plan["policy_ref"]
+    assert plan["checkpoint_ref"]
+    assert "budget" not in plan and "context_policy" not in plan
+    assert {task["role"] for task in plan["tasks"]} <= {
+        "primary-agent",
+        "delegated-executor",
+        "reviewer",
+        "synthesizer",
+    }
+    assert all(task["task_packet"].startswith(".ai/task_") for task in plan["tasks"])
+    assert all("agent" not in task for task in plan["tasks"])
 
-    assert "context_policy:" in sample
-    assert "main_session_token_budget: 3000" in sample
-    assert "task_packet_token_budget: 6000" in sample
-    assert "result_summary_word_budget: 250" in sample
-    assert "memory_digest_token_budget: 1200" in sample
-    assert "log_tail_lines_on_error: 50" in sample
-    assert "raw_log_policy: path-only" in sample
-    assert "agentmemory: optional" in sample
+
+def test_active_surfaces_do_not_route_to_archived_provider():
+    for path in ACTIVE_SURFACES:
+        text = path.read_text(encoding="utf-8").lower()
+        assert "gemini" not in text, path
+        for stale_count in ("5" + " skills", "6" + " skills", "6th" + " skill"):
+            assert stale_count not in text, f"{path}: {stale_count}"
 
 
-def test_default_reconciliation_sample_is_context_safe():
-    r"""The reconciliation sample must demonstrate path-only log handling
-    + bounded summaries. We check the positive contract (path references
-    present, agent task counts present) and a few specific anti-patterns
-    that would indicate a regression toward inline raw logs.
+def test_skill_contracts_use_canonical_policy_without_numeric_defaults():
+    numeric_default_patterns = (
+        "default 250",
+        "default 50",
+        "max 3 rounds",
+        "8 kb",
+        "200-400 words",
+    )
+    for skill in (ROOT / "skills").glob("*/SKILL.md"):
+        text = skill.read_text(encoding="utf-8").lower()
+        for pattern in numeric_default_patterns:
+            assert pattern not in text, f"{skill}: duplicated policy value {pattern}"
 
-    Note: we intentionally do NOT assert ``` not in sample — a
-    fenced YAML/shell block in the prose section is fine and may be added
-    later for readability. The real context-safety check is that log
-    contents are referenced by *path*, not pasted inline.
-    """
-    sample = (ROOT / "examples" / "reconciliation_001.md.sample").read_text(
+    budget = (ROOT / "skills" / "agent-context-budget" / "SKILL.md").read_text(
         encoding="utf-8"
     )
-
-    # Positive contract: agent task counts are listed
-    assert "Task Count by Agent:" in sample
-    assert "- claude: 1" in sample
-    assert "- codex: 2" in sample
-    assert "- gemini: 1" in sample
-
-    # Positive contract: at least one result/log path is referenced
-    # (path-only handling, the whole point of context-safety)
-    assert ".ai/" in sample, "reconciliation should reference .ai/ result paths"
-
-    # Negative contract: no raw stack traces or "last N lines" log dumps
-    # These would indicate the reconciler pasted log content inline.
-    forbidden_patterns = [
-        "Traceback (most recent call last)",  # python stack trace
-        "Error log tail:",                     # log dump header
-        "last 50 lines",                       # explicit log-tail dump
-    ]
-    for pattern in forbidden_patterns:
-        assert pattern.lower() not in sample.lower(), (
-            f"Found '{pattern}' in reconciliation sample — context "
-            f"safety regression (logs should stay path-only)."
-        )
-
-
-def test_context_docs_and_agentmemory_docs_exist():
-    pressure = ROOT / "docs" / "context-pressure-scenarios.md"
-    agentmemory = ROOT / "docs" / "agentmemory-integration.md"
-
-    assert pressure.exists()
-    assert agentmemory.exists()
-
-    pressure_text = pressure.read_text(encoding="utf-8")
-    for phrase in [
-        "large Codex + Gemini refactor",
-        "cross-session resume with long memory",
-        "Gemini task drift",
-        "agentmemory unavailable",
-    ]:
-        assert phrase in pressure_text
-
-    agentmemory_text = agentmemory.read_text(encoding="utf-8")
-    assert ".coord/memory.yml is canonical" in agentmemory_text
-    assert "optional" in agentmemory_text.lower()
-
-
-def test_observed_failure_modes_doc_exists_and_covers_real_incidents():
-    """The observed-failure-modes doc must capture every failure
-    category that the skills now defend against. If a new failure
-    is added to the skills without being documented here, that's a
-    knowledge-loss risk for future maintainers.
-    """
-    failure_modes = ROOT / "docs" / "observed-failure-modes.md"
-    assert failure_modes.exists(), (
-        "docs/observed-failure-modes.md must exist — it's the ground "
-        "truth for why each skill guardrail exists."
+    par = (ROOT / "skills" / "agent-plan-act-reflect" / "SKILL.md").read_text(
+        encoding="utf-8"
     )
-
-    text = failure_modes.read_text(encoding="utf-8")
-    # Each failure mode codified in the skills must have an F-number
-    # entry in this doc.
-    required_failure_ids = [
-        "F1",  # Gemini gitignore
-        "F2",  # Gemini drops table structure
-        "F3",  # Time-sensitive language drift
-        "F4",  # Frontier-model fabrication
-        "F5",  # Star count drift
-        "F6",  # Codex over-tabularization
-        "F7",  # Slug drift
-        "F8",  # Large diff context bloat
-        "F9",  # Cascading review rounds
-        "F10",  # Stale ScheduleWakeup
-        "F11",  # Codex over-applies sweep to meta-doc tables (v0.2.2)
-        "F12",  # Codex injects unrequested attribution lines (v0.2.2)
-    ]
-    for fid in required_failure_ids:
-        assert f"## {fid}." in text, (
-            f"Failure mode {fid} not documented in observed-failure-modes.md"
-        )
+    assert "agent-collab policy evaluate" in budget
+    assert "agent-collab policy evaluate" in par
 
 
-def test_acceptance_gate_presets_present_and_well_formed():
-    """The 3 presets must exist as YAML files under
-    skills/agent-acceptance-gate/presets/ and parse cleanly.
-    """
-    import yaml  # PyYAML; if missing, test will fail with ImportError
-    # which is the right signal — the bundle assumes PyYAML.
-
-    presets_dir = ROOT / "skills" / "agent-acceptance-gate" / "presets"
-    assert presets_dir.exists(), "presets/ directory must exist"
-
-    required_presets = [
-        "multi-locale-mirror-sync.yml",
-        "catalog-entry-add.yml",
-        "fact-check-frontier-models.yml",
-    ]
-    for name in required_presets:
-        path = presets_dir / name
-        assert path.exists(), f"Required preset missing: {name}"
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        # Each preset has the canonical schema
-        assert "preset_name" in data, f"{name}: missing preset_name"
-        assert "description" in data, f"{name}: missing description"
-        assert "checks" in data, f"{name}: missing checks"
-        assert isinstance(data["checks"], list) and len(data["checks"]) > 0, (
-            f"{name}: checks must be non-empty list"
-        )
+def test_scratch_and_memory_contracts_are_explicit():
+    splitter = (ROOT / "skills" / "agent-task-splitter" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    memory = (ROOT / "skills" / "agent-shared-memory" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    assert "scratch" in splitter.lower()
+    assert "proposal" in memory.lower()
+    assert "explicit human" in memory.lower()
+    assert "never edits an existing event" in memory.lower()
 
 
-def test_acceptance_gate_skill_documents_presets():
-    """The acceptance-gate SKILL.md must mention each preset by name
-    so users can discover them.
-    """
-    skill = ROOT / "skills" / "agent-acceptance-gate" / "SKILL.md"
-    text = skill.read_text(encoding="utf-8")
-    for preset_name in [
+def test_acceptance_presets_parse_and_are_discoverable():
+    skill_text = (
+        ROOT / "skills" / "agent-acceptance-gate" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    names = {
         "multi-locale-mirror-sync",
         "catalog-entry-add",
         "fact-check-frontier-models",
-    ]:
-        assert preset_name in text, (
-            f"acceptance-gate SKILL.md must reference preset '{preset_name}'"
-        )
+    }
+    for name in names:
+        path = ROOT / "skills" / "agent-acceptance-gate" / "presets" / f"{name}.yml"
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        assert data["preset_name"] == name
+        assert data["checks"]
+        assert name in skill_text
 
-
-def test_v022_plan_act_reflect_skill_present():
-    """v0.2.2 added a 7th skill: agent-plan-act-reflect.
-    SKILL.md must exist with valid frontmatter."""
-    skill_path = ROOT / "skills" / "agent-plan-act-reflect" / "SKILL.md"
-    assert skill_path.exists(), "v0.2.2 skill agent-plan-act-reflect not found"
-
-    text = skill_path.read_text(encoding="utf-8")
-    assert text.startswith("---\n"), "Missing YAML frontmatter delimiter"
-    assert "name: agent-plan-act-reflect" in text
-    assert "description:" in text
-    # The skill should explicitly distinguish from agent-debate
-    assert "agent-debate" in text, (
-        "agent-plan-act-reflect must reference agent-debate to clarify "
-        "the single-agent-self-correction vs 2-agent-adversarial distinction"
+    locale_preset = yaml.safe_load(
+        (
+            ROOT
+            / "skills"
+            / "agent-acceptance-gate"
+            / "presets"
+            / "multi-locale-mirror-sync.yml"
+        ).read_text(encoding="utf-8")
     )
+    assert locale_preset["invocation_param"]["files"]["required"] is True
+    check_ids = {check["id"] for check in locale_preset["checks"]}
+    assert {
+        "h2_parity",
+        "table_structure_parity",
+        "mermaid_node_parity",
+        "mermaid_edge_parity",
+        "internal_link_resolution",
+        "markdown_anchor_resolution",
+        "locale_profile",
+    } <= check_ids
+    assert all(check.get("type") != "command" for check in locale_preset["checks"])
+    assert "command_param" not in locale_preset
 
 
-def test_v022_cost_gate_in_context_budget():
-    """v0.2.2 added max_cost_usd field to agent-context-budget."""
-    skill_path = ROOT / "skills" / "agent-context-budget" / "SKILL.md"
-    text = skill_path.read_text(encoding="utf-8")
-    assert "max_cost_usd" in text, (
-        "agent-context-budget must document max_cost_usd field in v0.2.2"
+def test_failure_history_is_retained_as_history():
+    history = (ROOT / "docs" / "observed-failure-modes.md").read_text(
+        encoding="utf-8"
     )
-    # Should specifically explain why both token AND cost budgets exist
-    assert "default_max_cost_usd" in text
-
-
-def test_v022_f11_f12_guards_in_preset():
-    """v0.2.2 multi-locale-mirror-sync.yml preset must contain
-    explicit F11 + F12 regression guards.
-    """
-    import yaml
-
-    preset = ROOT / "skills" / "agent-acceptance-gate" / "presets" / "multi-locale-mirror-sync.yml"
-    data = yaml.safe_load(preset.read_text(encoding="utf-8"))
-
-    check_ids = {c["id"] for c in data["checks"]}
-    assert "unrequested_attribution_lines" in check_ids, (
-        "F12 regression guard missing from preset"
-    )
-    assert "meta_doc_table_preservation" in check_ids, (
-        "F11 regression guard missing from preset"
-    )
-
-
-def test_v022_pre_task_scope_confirmation_in_task_splitter():
-    """v0.2.2 task-splitter step 6 must require pre-task scope echo."""
-    skill_path = ROOT / "skills" / "agent-task-splitter" / "SKILL.md"
-    text = skill_path.read_text(encoding="utf-8")
-    assert "Pre-task scope confirmation" in text, (
-        "task-splitter v0.2.2 must require pre-task scope echo block"
-    )
-    assert "Confirmed scope" in text, (
-        "task-splitter v0.2.2 must include scope confirmation template"
-    )
+    for failure_id in range(1, 15):
+        assert f"## F{failure_id}." in history

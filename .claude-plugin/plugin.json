@@ -1,7 +1,7 @@
 {
   "name": "agent-collab-workspace",
-  "description": "6 skills for context-safe multi-agent collaboration: task-splitter, context-budget, output-reconciler, debate, shared-memory, and acceptance-gate. Composes with codex-delegate and pinned-model Claude lanes via bounded .ai task packets (gemini lane deprecated 2026-06-18), .coord context policy, and result.json contracts.",
-  "version": "0.3.1",
+  "description": "7 provider-neutral skills for bounded multi-agent collaboration: task splitting, policy-aware context, plan-act-reflect, reconciliation, debate, proposal-only memory, and acceptance gating.",
+  "version": "0.4.0",
   "author": {
     "name": "Wenyu Chiou"
   },
@@ -10,14 +10,14 @@
   "license": "MIT",
   "keywords": [
     "multi-agent",
-    "claude-code",
-    "codex",
-    "gemini",
+    "agent-harness",
+    "human-in-the-loop",
     "orchestration",
     "delegation",
     "agent-collaboration",
     "task-decomposition",
     "context-budget",
+    "checkpoint",
     "agent-memory"
   ]
 }

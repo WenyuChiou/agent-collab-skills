@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/WenyuChiou/agent-collab-skills/blob/main/src/agent_collab_harness/schemas/task-checkpoint-1.json",
+  "title": "TaskCheckpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "parent_id",
+    "status",
+    "cycle",
+    "tool_calls",
+    "elapsed_seconds",
+    "transcript_bytes",
+    "same_failure_retries",
+    "no_evidence_cycles",
+    "active_children",
+    "evidence_refs",
+    "decisions",
+    "overrides",
+    "stop_reason",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "task_id": {"type": "string", "minLength": 1, "pattern": ".*\\S.*"},
+    "parent_id": {
+      "oneOf": [
+        {"type": "string", "minLength": 1, "pattern": ".*\\S.*"},
+        {"type": "null"}
+      ]
+    },
+    "status": {
+      "enum": [
+        "running",
+        "waiting_for_human",
+        "completed",
+        "blocked",
+        "budget_exhausted",
+        "error",
+        "cancelled",
+        "declined",
+        "timed_out"
+      ]
+    },
+    "cycle": {"type": "integer", "minimum": 0},
+    "tool_calls": {"type": "integer", "minimum": 0},
+    "elapsed_seconds": {"type": "number", "minimum": 0},
+    "transcript_bytes": {"type": "integer", "minimum": 0},
+    "same_failure_retries": {"type": "integer", "minimum": 0},
+    "no_evidence_cycles": {"type": "integer", "minimum": 0},
+    "active_children": {"type": "integer", "minimum": 0},
+    "children_spawned": {"type": "integer", "minimum": 0, "default": 0},
+    "last_checkpoint_transcript_bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "task_packet_tokens": {"type": "integer", "minimum": 0, "default": 0},
+    "parent_summary_tokens": {"type": "integer", "minimum": 0, "default": 0},
+    "memory_digest_tokens": {"type": "integer", "minimum": 0, "default": 0},
+    "child_result_words": {"type": "integer", "minimum": 0, "default": 0},
+    "pending_action_hash": {
+      "oneOf": [
+        {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        {"type": "null"}
+      ],
+      "default": null
+    },
+    "evidence_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "pattern": ".*\\S.*"}
+    },
+    "decisions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/decision"}
+    },
+    "overrides": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/override"}
+    },
+    "stop_reason": {
+      "oneOf": [
+        {"type": "string", "minLength": 1, "pattern": ".*\\S.*"},
+        {"type": "null"}
+      ]
+    },
+    "updated_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate",
+        "actor",
+        "decision",
+        "timestamp",
+        "rationale",
+        "affected_action_hash",
+        "authorization"
+      ],
+      "properties": {
+        "gate": {"type": "string", "minLength": 1, "pattern": ".*\\S.*"},
+        "actor": {"type": "string", "pattern": "^human:\\S+$"},
+        "decision": {"enum": ["approve", "decline", "revise"]},
+        "timestamp": {"type": "string", "format": "date-time"},
+        "rationale": {"type": "string", "minLength": 1, "pattern": ".*\\S.*"},
+        "affected_action_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "authorization": {"$ref": "#/$defs/authorization"}
+      }
+    },
+    "override": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "limit",
+        "value",
+        "reason",
+        "actor",
+        "timestamp",
+        "affected_action_hash",
+        "observed_value",
+        "authorization"
+      ],
+      "properties": {
+        "limit": {
+          "enum": [
+            "max_cycles",
+            "max_tool_calls",
+            "max_elapsed_seconds",
+            "checkpoint_transcript_bytes",
+            "max_transcript_bytes",
+            "max_same_failure_retries",
+            "max_no_evidence_cycles",
+            "max_children_per_parent",
+            "max_concurrency",
+            "max_task_packet_tokens",
+            "max_parent_summary_tokens",
+            "max_memory_digest_tokens",
+            "max_child_result_words"
+          ]
+        },
+        "value": {"type": "integer", "minimum": 0},
+        "observed_value": {"type": "number", "minimum": 0},
+        "reason": {"type": "string", "minLength": 1, "pattern": ".*\\S.*"},
+        "actor": {"type": "string", "pattern": "^human:\\S+$"},
+        "timestamp": {"type": "string", "format": "date-time"},
+        "affected_action_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "authorization": {"$ref": "#/$defs/authorization"}
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme", "key_id", "signature"],
+      "properties": {
+        "scheme": {"const": "hmac-sha256"},
+        "key_id": {"type": "string", "pattern": "^\\S+$"},
+        "signature": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    }
+  }
+}

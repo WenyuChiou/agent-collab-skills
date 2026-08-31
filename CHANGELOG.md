@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] - 2026-08-31
+
+### Added
+
+- Public `agent-collab-harness` Python distribution and `agent-collab` CLI for
+  strict policy validation, checkpoint validation, policy evaluation, and
+  environment diagnostics.
+- Versioned `TaskCheckpoint`, `PolicyDecision`, and policy schemas with
+  deterministic boundary, retry, checkpoint, concurrency, and context checks.
+- Compatibility normalization for the existing portable-harness v1 canonical
+  policy without duplicating or rewriting its budget values.
+- Action-hash-bound HMAC authorization for human decisions and limit overrides,
+  including proof that an override was approved before the original limit.
+- Provider-neutral roles: primary agent, delegated executor, reviewer, and
+  synthesizer.
+
+### Changed
+
+- Seven skills now share one canonical machine-readable policy instead of
+  copying numeric defaults into prose.
+- Coordination directories are scratch by default; only explicit checkpoint,
+  shipping, or acceptance evidence is promoted.
+- Shared memory is proposal-only. Approved changes append immutable events and
+  never rewrite older questions or decisions; approval hashes cover an
+  immutable action payload rather than mutable decision metadata.
+- Active manifests, samples, install instructions, tests, and skill contracts
+  no longer route to archived providers.
+
+### Compatibility
+
+- Historical provider-specific plans and result paths remain parse-only inputs.
+- Migration and rollback guidance is documented in `docs/migration-0.4.md`.
+- Configured but unreadable policy fails closed; no silent retry, model switch,
+  or context discard is permitted.
+
 ## [0.3.1] - 2026-07-11
 
 ### Changed — Antigravity lane promoted (evidence row only)

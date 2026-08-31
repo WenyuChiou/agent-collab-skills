@@ -1,21 +1,21 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "agent-collab-skills",
-  "description": "Context-safe multi-agent collaboration skills for Claude Code: task splitter, context budget, output reconciler, debate, shared memory, acceptance gate. Composes with codex-delegate and pinned-model Claude lanes (gemini lane deprecated).",
+  "description": "Provider-neutral, policy-aware collaboration skills with checkpoints, proposal-only memory, and human acceptance gates.",
   "owner": {
     "name": "Wenyu Chiou"
   },
   "metadata": {
-    "description": "Practical skills for orchestrating Claude + Codex (+ cheap-Claude lanes) on the same task without losing state, exploding context, missing conflicts, or merging unverified output.",
-    "version": "0.3.1"
+    "description": "Practical skills for bounded multi-agent work without losing state, hiding failed results, or shipping without evidence and human authorization.",
+    "version": "0.4.0"
   },
   "plugins": [
     {
       "name": "agent-collab-workspace",
-      "description": "6 multi-agent collaboration skills auto-discovered from the source repo's skills/ subdirectory: agent-task-splitter, agent-context-budget, agent-output-reconciler, agent-debate, agent-shared-memory, agent-acceptance-gate.",
+      "description": "7 multi-agent collaboration skills: task splitter, context budget, plan-act-reflect, output reconciler, debate, proposal-only shared memory, and acceptance gate.",
       "category": "productivity",
       "homepage": "https://github.com/WenyuChiou/agent-collab-skills",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "strict": true,
       "source": {
         "source": "url",

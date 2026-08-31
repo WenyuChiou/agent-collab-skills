@@ -1,34 +1,26 @@
-# Optional agentmemory Integration
+# Optional recall and canonical memory
 
-`.coord/memory.yml is canonical`. agentmemory is an optional searchable
-cache for recall across sessions and tools. The collaboration workflow
-must still work when agentmemory is missing, stopped, or returning no
-results.
+External memory or recall systems are optional caches. They may accelerate
+search, but they never become the policy, evidence, or decision authority.
 
-## Supported Pattern
+## Authority order
 
-Use `.coord/` as the source of truth:
+1. current human instruction and recorded decision;
+2. repository state and immutable acceptance evidence;
+3. validated checkpoint and canonical append-only memory events;
+4. optional recall cache.
 
-- `.coord/plan.yml` defines the round and context policy.
-- `.coord/memory.yml` records accepted decisions, open questions,
-  artifact pointers, and session outcomes.
-- `.coord/session_primer.md` is the bounded context loaded into a fresh
-  session.
+## Write path
 
-Use agentmemory only to enrich recall:
+An agent may create a proposal under `.coord/memory-proposals/`. It cannot
+directly add, change, archive, supersede, or delete canonical memory.
 
-- Query for prior decisions or similar issues before writing the
-  primer.
-- Mirror compact memory candidates only after they pass the promotion
-  rules in `agent-shared-memory`.
-- Store paths and summaries, not raw logs, diffs, source code, or
-  secrets.
+1. Create a proposal with evidence references and an action hash.
+2. Record a human `approve`, `decline`, or `revise` decision.
+3. If approved and bytes still match the action hash, append a new event.
+4. Keep older events immutable. Resolutions and corrections reference them.
+5. Update an optional recall cache only after the canonical event exists.
 
-## Failure Behavior
-
-If agentmemory is unavailable, continue without it. Do not block task
-splitting, reconciliation, acceptance, or shared-memory updates.
-
-Acceptance evidence must come from tests, `.coord/plan.yml`,
-`result.json`, result summaries, and reconciliation reports. Vector
-recall is context, not proof.
+Cache failure never changes a human decision or turns a failed task into
+success. Cache writes and external service mutations require the host's normal
+permission and audit controls.

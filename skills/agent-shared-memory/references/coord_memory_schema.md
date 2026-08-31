@@ -1,226 +1,151 @@
-# `.coord/memory.yml` — full schema and rules
+# Coordination memory event and proposal schemas
 
-## Why this file exists
+Version 2 resolves two earlier contradictions:
 
-Codex resume sessions, Gemini sessions, and Claude sessions don't
-share memory natively. When a multi-agent project spans days or
-weeks (and 5+ agent runs), decisions get made in one session and
-forgotten by the next agent that picks up the work.
+1. Canonical memory is an immutable event log. Resolving a question or ending
+   an execution appends an event instead of editing an older record.
+2. Agents produce proposals. Canonical writes require a recorded human
+   approval bound to the proposed bytes.
 
-`.coord/memory.yml` is the cross-session blackboard. Every
-significant decision, open question, artifact, or agent run gets
-appended. Reading it gives a new session enough context to be
-useful without re-deriving everything.
+## Canonical event log
 
-## Schema
+Path: .coord/memory.yml
 
-```yaml
-project: "<repo name or research project slug>"
-created_utc: "<ISO 8601 UTC timestamp of file creation>"
+    schema_version: 2
+    project: "<project slug>"
+    created_at: "<ISO 8601 with timezone>"
+    events:
+      - event_id: M1
+        event_type: decision
+        created_at: "<ISO 8601 with timezone>"
+        actor: "human:owner"
+        summary: "Use an append-only event log for coordination memory."
+        rationale: "Older records must remain auditable."
+        evidence_refs:
+          - "docs/public-harness-contract.md"
+        supersedes: []
+        resolves: []
+        target_ref: null
+        source_proposal_id: "<uuid>"
+        approval:
+          actor: "human:owner"
+          decision: approve
+          timestamp: "<ISO 8601 with timezone>"
+          rationale: "Approved after schema review."
+          affected_action_hash: "<lowercase SHA-256>"
 
-decisions:
-  - id: D<n>                          # D1, D2, ...; monotonic, never reused
-    date_utc: "<ISO 8601 UTC>"
-    what: "<one-sentence statement of the decision>"
-    why: "<one-sentence rationale>"
-    made_by: "claude"|"codex"|"gemini"|"user"|"agent-debate"
-    supersedes: [<list of older D-ids that this replaces>]
-    # Optional fields:
-    related_artifacts: [<paths of artifacts that informed or implement this>]
-    confidence: "high"|"medium"|"low"
-    revisit_after_utc: "<ISO 8601>"   # if decision is provisional
+Required event fields:
 
-open_questions:
-  - id: Q<n>                          # Q1, Q2, ...; monotonic
-    asked_utc: "<ISO 8601>"
-    question: "<one-sentence question>"
-    blocker_for: [<task IDs from .coord/plan.yml or "none">]
-    suggested_next_agent: "claude"|"codex"|"gemini"|"user"|"debate"
-    resolved_by: <D-id, or null if unresolved>
-    # Optional:
-    context: "<longer description if needed>"
+| Field | Contract |
+|---|---|
+| event_id | M followed by a monotonic integer; never reused |
+| event_type | decision, open_question, resolution, artifact, execution, lifecycle |
+| created_at | Timezone-aware ISO 8601 |
+| actor | Human or provider-neutral role identity |
+| summary | Compact durable fact |
+| rationale | Why the event belongs in memory |
+| evidence_refs | Non-empty stable references |
+| supersedes | Older event ids made non-current by this event |
+| resolves | Open-question event ids resolved by this event |
+| target_ref | Required for lifecycle events; otherwise null when unused |
+| source_proposal_id | Proposal that authorized the event |
+| approval | Recorded human decision bound to the proposal/action hash |
 
-artifacts:
-  - path: "<file path relative to project root>"
-    round: <int>                      # which .coord/plan.yml round produced it
-    produced_by: "<skill or agent name>"
-    used_by: [<list of skills / agents that consume this>]
-    timestamp_utc: "<ISO 8601>"
-    # Optional:
-    summary: "<one-line description>"
+Older events never gain a resolved_by, ended_at, status, archive, or deletion
+field later. Changes are new events.
 
-agent_history:
-  - agent: "claude"|"codex"|"gemini"
-    session_id: "<agent-provided session ID, e.g., codex resume token>"
-    started_utc: "<ISO 8601>"
-    ended_utc: "<ISO 8601 or null if still running>"
-    output_summary: "<path to result.md or 'in-conversation'>"
-    status: "success"|"fallback"|"error"|"in-progress"
-    # Optional:
-    task_ids: [<plan.yml task IDs handled in this session>]
-    tokens_used: <int>
-```
+## Proposal
 
-## Append-only rule
+Path: .coord/memory-proposals/<proposal-id>.json
 
-The file is append-only at the **list-element level**. You may:
+    {
+      "schema_version": 1,
+      "proposal_id": "<canonical lowercase UUID>",
+      "source_task": "<task id>",
+      "action": {
+        "operation": "add",
+        "target_ref": null,
+        "summary": "<proposed durable event>",
+        "evidence_refs": ["<stable ref>"]
+      },
+      "state": "proposed",
+      "created_at": "<ISO 8601 with timezone>",
+      "decision": null
+    }
 
-- Add new entries to any of the 4 lists.
-- Update an existing entry's `resolved_by` field (when an open
-  question gets answered).
-- Update `agent_history[i].ended_utc` and `status` when an
-  in-progress session completes.
+Operations:
 
-You may NOT:
+| Operation | target_ref | Canonical effect after approval |
+|---|---|---|
+| add | null | Append a new fact event |
+| supersede | required | Append an event whose supersedes includes target_ref |
+| archive | required | Append a lifecycle event |
+| delete | required | Append a lifecycle request; physical removal still follows repository retention policy |
 
-- Edit the `what`, `why`, `question`, or other content fields of
-  existing entries.
-- Delete entries.
-- Reuse IDs.
+The initial state is proposed. Proposed records have a null decision. Approval
+changes only the envelope state and decision object; the nested action object is
+immutable. A revise decision produces a new proposal and does not authorize
+application.
 
-To "change" a decision: append a new decision with `supersedes:
-[<old-id>]`. The old entry stays as historical record.
+An approval decision contains actor, decision, timestamp, rationale,
+affected_action_hash, and an `hmac-sha256` authorization object. The trusted
+host signs it using a key that is not available to delegated executors.
 
-## Atomic writes
+## Approval binding
 
-When multiple agents are running concurrently (Claude session A
-adds a decision while Codex session B's wrapper appends an
-agent_history entry), naive write-without-lock can corrupt the
-YAML.
+Compute `affected_action_hash` from the exact canonical JSON bytes of the
+immutable nested `action` object used for the decision. Never include `state` or
+decision metadata in this payload. Before application:
 
-Use a lock file pattern:
+1. Recompute the hash from the unchanged `action` object.
+2. Confirm it matches the recorded approval.
+3. Confirm state is approved.
+4. Verify the decision HMAC using the trusted host key.
+5. Confirm evidence references still resolve.
+6. Acquire the memory lock.
+7. Append one event using an atomic temporary-file replacement.
 
-```bash
-LOCK=.coord/memory.yml.lock
-TIMEOUT=300                                # seconds; 5 min stale-lock cutoff
+Any mismatch stops application and returns to the human. Do not repair, rehash,
+or approve on the human's behalf.
 
-acquire_lock() {
-  local i=0
-  while [ $i -lt 30 ]; do
-    if mkdir "$LOCK" 2>/dev/null; then
-      echo $$ > "$LOCK/pid"
-      return 0
-    fi
-    # Check if existing lock is stale
-    if [ -f "$LOCK/pid" ]; then
-      local age=$(( $(date +%s) - $(stat -c %Y "$LOCK/pid" 2>/dev/null || echo 0) ))
-      if [ $age -gt $TIMEOUT ]; then
-        echo "stale lock, removing" >&2
-        rm -rf "$LOCK"
-        continue
-      fi
-    fi
-    sleep 1
-    i=$((i+1))
-  done
-  echo "couldn't acquire lock after 30s" >&2
-  return 1
-}
+## Concurrency
 
-release_lock() {
-  rm -rf "$LOCK"
-}
+Use an atomic create-only lock at .coord/memory.yml.lock. The lock record must
+contain owner, created_at, task_id, and proposal_id. A stale-looking lock is not
+standing permission to delete it; first confirm its owner is no longer active.
 
-# Usage:
-acquire_lock || exit 1
-trap release_lock EXIT
-# ... read memory.yml, modify, write atomically (write to .tmp then mv) ...
-mv .coord/memory.yml.tmp .coord/memory.yml
-```
+Write the complete next document to a temporary sibling, flush it, then replace
+memory.yml atomically. Failure leaves the original bytes unchanged.
 
-In practice, since `agent-shared-memory` is invoked by the
-in-conversation Claude (not by Codex's wrapper), single-agent
-serialization is the common case. The lock is defense in depth.
+## Reading current state
 
-## ID assignment
+Derive current state without mutating events:
 
-- Decisions: `D1`, `D2`, ... in order of `date_utc` (= file
-  position in the list).
-- Questions: `Q1`, `Q2`, ... same.
-- Never reuse. Never renumber. If you delete the file and start
-  over, that's a new project — don't carry old IDs.
+1. Index all events by event_id.
+2. Mark superseded ids from later events.
+3. Mark resolved question ids from resolution events.
+4. Apply lifecycle events as a view, not physical deletion.
+5. Report conflicts where two current events disagree.
 
-## Initialization
+Do not use agent majority as a truth rule. Evidence and human decisions decide
+whether a claim becomes canonical.
 
-For a new project:
+## v1 compatibility
 
-```yaml
-project: "<name>"
-created_utc: "<now>"
-decisions: []
-open_questions: []
-artifacts: []
-agent_history: []
-```
+Schema-less/v1 memory remains read-only compatibility input:
 
-That's it. Fields get added as work happens.
+- decisions become decision events
+- open questions become open_question events
+- resolved_by becomes a separate resolution event
+- artifacts become artifact events
+- agent_history becomes execution events
 
-## Read-mode digest format
+Migration is dry-run first and does not overwrite v1. This repository does not
+ship an automatic canonical-memory migration command in 0.4; conversion remains
+a reviewed, human-approved proposal.
 
-When generating a digest for a new agent session, format:
+## Artifact policy
 
-```
-[agent-shared-memory] Project state — <project>
-
-Current decisions (<count>):
-  <D-id> (<date>): <what>
-  ...
-
-Historical / superseded (<count>):
-  <D-id> (<date>): <what>. Replaced by <D-id>.
-  ...
-
-Open questions (<count>):
-  <Q-id>: <question>
-       Blocking: <task IDs or "nothing">.
-       Suggested next: <agent>.
-  ...
-
-Last <N> agent sessions (most recent first):
-  <date> <agent>  <task slug>  <status>
-  ...
-
-Recent artifacts (last <N>):
-  <path> (<date>, <produced_by>)
-  ...
-```
-
-Default `<N>`: 3 for sessions, 5 for artifacts. Adjust based on
-how much context the user actually wants.
-
-## What goes in vs what doesn't
-
-### Goes in
-
-- Decisions about architecture / library / data model with
-  explicit `why`.
-- Open questions blocking work, with which task is blocked.
-- Artifacts produced by skills (plan.yml, reconciliation reports,
-  etc.).
-- Agent session boundaries (start, end, status, output summary
-  pointer).
-
-### Doesn't go in
-
-- Per-task scratch (use `.ai/<agent>_task_*.md`).
-- Source code (it's already in version control).
-- Long prose / analysis (link to `.md` artifact files instead;
-  store the path).
-- Secrets, API keys, credentials.
-- Information specific to a single research project — that goes
-  in `.research/project_manifest.yml`, not `.coord/memory.yml`.
-  This file is for **multi-agent coordination**, not project-level
-  facts.
-
-## Versioning
-
-If you commit `.coord/memory.yml` to git: append-only enforces a
-clean diff per decision. Each commit shows exactly what was added
-to memory.
-
-If you `.gitignore` it: it's local state. Less audit trail; less
-secrets-leak risk. Default behavior in `.gitignore`-shipped
-projects.
-
-The skill itself doesn't enforce either; the user picks per
-project.
+.coord/ is ignored by default. Do not commit every event or proposal. Promote
+only an explicit checkpoint snapshot, shipping artifact, or acceptance record
+into a repository-owned evidence path.

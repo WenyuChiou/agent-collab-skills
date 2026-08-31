@@ -1,193 +1,127 @@
 # Agent Collab Skills
 
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[English](README.md) · [公開 harness 合約](docs/public-harness-contract.md) · [0.4 遷移指南](docs/migration-0.4.md)
 
-[English](README.md) ・ **繁體中文**
+本文件使用繁體中文。
 
-![Pipeline 概覽：agent-task-splitter → codex-delegate / gemini-delegate / claude-in-session → agent-output-reconciler → agent-acceptance-gate，agent-shared-memory 與 agent-debate 為跨層 chip](docs/pipeline-overview.png)
+一組 provider-neutral 的協作 skills，搭配可選、standard-library-first 的
+Python harness，用於有界、可恢復且由人類授權的 agent 工作流程。
 
-> 6 個 Claude Code skill，專門處理 context-safe 多代理協作 — task
-> splitter、context budget、output reconciler、adversarial debate、
-> shared memory、acceptance gate。
-> 設計上與 [`codex-delegate`](https://github.com/WenyuChiou/codex-delegate)
-> 和 [`gemini-delegate-skill`](https://github.com/WenyuChiou/gemini-delegate-skill)
-> 互補組合。
+本專案是治理層，不是通用 agent runtime。Host 負責模型、工具、session、
+sandbox 與 tracing；Agent Collab 提供可攜式角色、policy 評估、checkpoint、
+proposal-only memory、結果對帳與 acceptance evidence。
 
-聚焦於**委派之上**那一層 orchestration。現有 delegate skill 解決的是
-「Claude → Codex / Gemini 的單次交手」；這個 catalog 處理的是後面的
-問題：怎麼把一個目標切給多個 agent、怎麼把它們的輸出對帳、怎麼跨
-session 記住決策、怎麼把好幾個 agent 的成果合併進主分支。
+## 架構
 
-姊妹 marketplace：[`ai-research-skills`](https://github.com/WenyuChiou/ai-research-skills)
-（13 個 skill，研究流程專用）。
+```mermaid
+flowchart LR
+    H[人類決策者] --> P[Primary agent]
+    P --> S[任務拆分]
+    S --> E[Delegated executor]
+    S --> R[Reviewer]
+    E --> C[Task checkpoint]
+    R --> C
+    C --> Y[Canonical policy 評估]
+    Y -->|continue| S
+    Y -->|checkpoint| P
+    Y -->|stop| B[明確 blocker]
+    E --> O[輸出對帳]
+    R --> O
+    O --> A[Acceptance evidence]
+    A --> H
+    H -->|approve / decline / revise| D[Append-only 人類決策]
+```
 
----
+Deterministic layer 控制狀態與限制；agents 負責 prose、實作、review 與
+synthesis。破壞性合約、memory promotion、語意驗收與 shipping 仍由人類
+負責。
 
-## ⏱ 這套 skills 最派上用場的場景
+## 七個 skills
 
-三個明顯有效率的使用情境：
+| Skill | 職責 |
+|---|---|
+| `agent-task-splitter` | 建立 provider-neutral task packets、角色、依賴、scope 與 acceptance criteria。 |
+| `agent-context-budget` | 驗證 policy/checkpoint context，建立有界 handoff，不複製數值預設。 |
+| `agent-plan-act-reflect` | 執行產生證據的修正循環；每輪後與每次 spawn 前重新評估 policy。 |
+| `agent-output-reconciler` | 保留缺失與失敗結果，呈現 scope drift、矛盾與衝突。 |
+| `agent-debate` | 為真正有爭議的決策進行有界 adversarial review；不以投票決定事實。 |
+| `agent-shared-memory` | 只產生 proposal 並附加已核准事件；不覆寫 canonical memory。 |
+| `agent-acceptance-gate` | 在獨立的人類決策前，產生不可變的 PASS、CONDITIONAL PASS 或 FAIL 證據。 |
 
-- **多語 mirror 同步**——把大量讀寫交給 delegate、主 session 只看 result 摘要、是目前用得最有感的地方。
-- **平行機械式 sweep**——批次取代 / 重新命名 / 重構交給 Codex、加 reviewer pattern 在 merge 前抓 drift。
-- **Commit 前的 acceptance gate**——subagent 結構化 verdict 取代手刻 `grep × N`、YAML preset 抓到過人工 audit 漏掉的真實 drift。
+## 公開 harness package
 
-想看 token 量測與事件紀錄可翻 [`docs/measured-benefits.md`](docs/measured-benefits.md)，但 README 的重點就是上面這三件事。
+Distribution：`agent-collab-harness`<br>
+Import：`agent_collab_harness`<br>
+Command：`agent-collab`
 
-> 📋 **什麼時候該 invoke 哪個 skill / preset？** 看 [`docs/when-to-invoke.md`](docs/when-to-invoke.md)——含 trigger 規則、YES / NO / judgment-call 場景對照、決策流程圖、以及一份**直接可貼進你自己專案的 CLAUDE.md 範本**（把規則 codify 進你的工作流）。
+```bash
+python -m pip install agent-collab-harness
+agent-collab policy validate --policy "$AGENT_COLLAB_POLICY" --json
+agent-collab checkpoint validate --checkpoint .coord/checkpoint.json --json
+agent-collab policy evaluate \
+  --policy "$AGENT_COLLAB_POLICY" \
+  --checkpoint .coord/checkpoint.json \
+  --json
+agent-collab doctor --json
+```
 
----
+Runtime 僅使用 Python standard library。Policy 採嚴格 JSON；只有內容本身
+是有效 JSON 時才接受 `.yaml` 副檔名。已設定但無法讀取的 policy 會 fail
+closed。
 
-## 安裝
+`AGENT_COLLAB_POLICY` 為每次執行選定唯一的機器可讀 budget 來源。Codex
+portable adapter 會將它指向
+`${CODEX_HOME}/portable-harness/policies/agent-budget.yaml`；系統同時接受該
+v1 格式與公開 v1 JSON 格式。Human decision 與 override 均綁定 action hash，
+並需由可信任 host 透過 `AGENT_COLLAB_HUMAN_KEYS_JSON` 提供 HMAC key；僅修改
+checkpoint 文字無法取得授權。對應的 key digest 必須預先固定在 canonical
+policy 的 `human_authorization.key_hashes`；呼叫者自建的 key 不具權限。Legacy
+portable v1 會正規化為空 trust root，因此仍可評估 budget，但在 canonical
+policy 明確升級前，所有 human record 都會 fail closed。
 
-前置：Claude Code (https://claude.ai/code)。建議（非必要）已透過
-`ai-research-skills` 安裝 `codex-delegate` 與 `gemini-delegate`，並把
-對應的 CLI binary 放到 PATH 上。
+## 角色合約
+
+Plan 使用四個公開角色：
+
+- `primary-agent`：負責 plan、checkpoint 與 human handoff；
+- `delegated-executor`：執行有界任務；
+- `reviewer`：獨立驗證證據與風險；
+- `synthesizer`：結構化已完成輸入，不捏造缺失結果。
+
+Provider 與 model 選擇屬於 host adapter，不是公開 plan 欄位，也不能在執行
+期間靜默切換。
+
+## Scratch、證據與 memory
+
+`.coord/` 與 `.ai/` 預設為 gitignored scratch。不要提交全部 coordination
+output。專案只能明確 promote：
+
+- resume 所需的 checkpoint snapshot；
+- shipping artifact；或
+- 不可變 acceptance evidence。
+
+Memory 一律 proposal-only。套用、修正、supersede、封存或刪除 canonical
+memory 都需要已記錄的人類決策。Canonical memory 是 append-only event log，
+不會就地修改舊記錄。
+
+## 安裝 skill bundle
 
 ```bash
 claude plugin marketplace add WenyuChiou/agent-collab-skills
 claude plugin install agent-collab-workspace@agent-collab-skills
 ```
 
-這個 bundle 會一次裝齊 6 個 skill。確認：
+也可使用 `scripts/install-all.sh` 或 `scripts/install-all.ps1`。Plugin 與
+Python package 是互補層：skills 描述協作行為；package 驗證並評估
+machine-readable contract。
+
+## 開發
 
 ```bash
-claude plugin list
-ls ~/.claude/skills/   # 應該看到 agent-task-splitter 等等
+python -m pip install -e .
+python -m pytest -q
+agent-collab doctor --json
 ```
 
-也可以用 helper script：
-
-```bash
-bash scripts/install-all.sh        # macOS / Linux / git-bash
-pwsh scripts/install-all.ps1       # Windows PowerShell
-```
-
-### 需要改 `CLAUDE.md` 嗎？
-
-**不用**。Claude Code 內建的 skill matching 會讀每個 `SKILL.md` 的 `description` 欄位、自動把使用者語句對到對應的 skill。安裝 plugin 就是全部的設定步驟 — 當你說「把這個切給 Claude、Codex、Gemini」，系統會自動觸發 `agent-task-splitter`，不需額外設定。
-
-以下兩種情況你*可以選擇*顯式把規則寫進 `~/.claude/CLAUDE.md`：
-
-- 你的 `CLAUDE.md` 已經有跟這些 skill 競爭的 delegation 協議（例如「永遠手寫 codex task 檔」這種既有硬規則，會搶走 routing 優先權）
-- 想強制特定行為（例如「multi-agent round 合併前一律跑 `agent-acceptance-gate`」）
-
-否則就讓 `CLAUDE.md` 維持原樣 — 這些 skill 預設靠 description-based discovery 運作。
-
----
-
-## 6 個 Skill
-
-| Skill | 觸發語句 | 寫到 `.coord/` |
-|---|---|---|
-| **`agent-task-splitter`** | 「把這個任務分給 Claude / Codex / Gemini」/「為 X 規劃多代理執行」 | `plan.yml` + `.ai/codex_task_*.md` / `.ai/gemini_task_*.md` |
-| **`agent-context-budget`** | 「context 快爆了」/「準備 fresh session primer」/「限制 Codex + Gemini 上下文」 | `context_<NNN>.md` + `session_primer.md` |
-| **`agent-output-reconciler`** | 「對帳這 N 份代理輸出」/「Codex 跟 Gemini 的結果一致嗎？」 | `reconciliation_<NNN>.md` |
-| **`agent-debate`** | 「讓 Claude 跟 Codex 辯論這個設計」/「對 X 做對抗式評審」 | `debate_<topic>.md` |
-| **`agent-shared-memory`** | 「把 X 寫進共享記憶」/「目前所有 agent 對這專案做過哪些決策？」 | `memory.yml` |
-| **`agent-acceptance-gate`** | 「跑 acceptance gate」/「合併前的預檢」 | `acceptance_<NNN>.md` |
-
-`<NNN>` 編號對應 `plan.yml` 裡的 `round` 欄位，方便把產物追溯回對應
-的多代理執行輪次。
-
----
-
-## 怎麼組合
-
-```
-goal
-  ↓ agent-task-splitter
-.coord/plan.yml + .ai/codex_task_*.md / .ai/gemini_task_*.md
-  ↓ agent-context-budget
-.coord/context_<NNN>.md + .coord/session_primer.md
-  ↓ codex-delegate / gemini-delegate（既有）
-.ai/codex_log_*.txt + .result.json + codex_result_*.md
-  ↓ agent-output-reconciler
-.coord/reconciliation_<NNN>.md
-  ↓ agent-acceptance-gate
-.coord/acceptance_<NNN>.md → 合併或重試
-```
-
-`agent-shared-memory` 跟整個 pipeline 同步進行 — 每一步都會更新它。
-`agent-debate` 只在「重大決策點」上呼叫（架構、設計選擇），不進主
-迴圈。
-
-完整實跑範例（含 `.coord/` 樣本檔，誠實記錄真實的多代理執行長什麼
-樣）：[docs/example-walkthrough.md](docs/example-walkthrough.md)。
-
----
-
-## 為什麼是這 6 個
-
-每一個解決的痛點，按順序：
-
-1. **任務切分很燒腦力。** 你現在每次都在腦中分類「這是 Codex 形狀的
-   還是 Gemini 形狀的？」。Splitter 把這個 heuristic 編成可重用的
-   skill。
-2. **大型任務的 context 會爆。** context-budget skill 把 memory、
-   logs、agent outputs 壓成 bounded packet 和 session primer。
-3. **多代理輸出很難對比。** 三個平行的 Codex job 跑回來，你打開三份
-   `result.json` 用人腦合併。Reconciler 替你做 diff。
-4. **共識式 LLM 輸出會掩蓋取捨。** 你問一個 agent 拿到一個答
-   案；Debate skill 強制兩個 agent 站對立面，逼出真正的張力。
-5. **跨 session 沒有共享記憶。** Codex resume 只在自己 session 內有效；
-   Claude session A → Codex session B → Gemini session C 之間什麼都不
-   會留下。Shared-memory 把 `.coord/memory.yml` 變成跨 session 的黑
-   板。
-6. **沒有標準化的合併閘。** 你現在用肉眼看 diff 加手動跑 `pytest`。
-   Gate 自動跑 `plan.yml` 裡所有 `success_criteria`、加成本預算、加
-   跨代理一致性檢查。
-
----
-
-## 與下列專案組合
-
-- [`codex-delegate`](https://github.com/WenyuChiou/codex-delegate) —
-  消費 splitter 的輸出，產出餵給 reconciler。
-- [`gemini-delegate-skill`](https://github.com/WenyuChiou/gemini-delegate-skill)
-  — 同上。
-- [`academic-writing-skills`](https://github.com/WenyuChiou/academic-writing-skills)
-  — 若散文有變動，acceptance gate 可選擇呼叫其 banned-word audit。
-- [`agentmemory`](https://github.com/rohitg00/agentmemory)
-  — 可選的 recall cache；`.coord/memory.yml` 仍是 canonical source。
-  詳見 [docs/agentmemory-integration.md](docs/agentmemory-integration.md)。
-
----
-
-## 已知問題
-
-- **Gemini-cli 拒讀 gitignored 檔案。** `.ai/` 目錄按慣例會被 gitignore
-  以避免暫存 task 檔被 commit；但 `gemini -p "Read .ai/gemini_task_*.md"`
-  會回 `file ignored by configured ignore patterns`。**Workaround**：
-  把 task 內容直接內嵌到 prompt body 裡：
-  ```bash
-  TASK=$(cat .ai/gemini_task_<NNN>_<slug>.md)
-  gemini -p "$TASK" --yolo \
-    < /dev/null > .ai/gemini_log_<NNN>_<slug>.txt 2>&1
-  ```
-  副作用：gemini 沒有檔案系統上下文，task 檔裡引用的路徑它讀不到 —
-  所以 prompt 本身要包含所有關鍵內容，不能只留路徑。Splitter 的
-  step 6b 已記錄這個處理方式。
-- **`codex` 和 `gemini` 在 stdin 開著時會卡在啟動。** 從 script 或
-  非互動 shell 啟動時，codex-cli ≥ 0.121.0 會印 "Reading additional
-  input from stdin..." 然後永遠卡住。gemini-cli 同樣狀況。
-  **Workaround**：每次直接呼叫都把 stdin 導到 `/dev/null`：
-  ```bash
-  codex exec --full-auto -m <model> "<prompt>" \
-    < /dev/null > .ai/codex_log_<NNN>_<slug>.txt 2>&1
-  ```
-  `codex-delegate` 的 wrapper script 內部已處理；只有直接呼叫
-  `codex exec` / `gemini -p` 時需要顯式加。
-- **Codex 讀 gitignored 檔案沒問題** — 只有 gemini 有 gitignore 衝突。
-- **完整實跑範例**（含 `.coord/` 樣本檔與誠實記錄真實多代理執行的
-  狀況）：[docs/example-walkthrough.md](docs/example-walkthrough.md)。
-
----
-
-## Status & License
-
-MIT 授權。專案仍在早期階段 — SKILL.md 的 prompt 骨架已完成，並在
-真實工作流測試過；若有 skill 失靈或 `.coord/` schema 在你的使用場景
-中不適用，歡迎開 issue。
-
-歡迎貢獻 — 見 [CONTRIBUTING.md](CONTRIBUTING.md) 了解 catalog ↔
-delegate-skill 之間的互通規則。
+合約、測試與 release 規則請見 [CONTRIBUTING.md](CONTRIBUTING.md)。歷史
+provider-specific 事件只保留在 failure archive，不是 active routing 指令。
