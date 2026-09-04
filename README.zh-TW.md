@@ -1,6 +1,6 @@
 # Agent Collab Skills
 
-[English](README.md) · [公開 harness 合約](docs/public-harness-contract.md) · [0.4 遷移指南](docs/migration-0.4.md)
+[English](README.md) · [公開 harness 合約](docs/public-harness-contract.md) · [0.4 遷移指南](docs/migration-0.4.md) · [0.5 goal-slice 遷移指南](docs/migration-0.5.md)
 
 本文件使用繁體中文。
 
@@ -24,7 +24,9 @@ flowchart LR
     C --> Y[Canonical policy 評估]
     Y -->|continue| S
     Y -->|checkpoint| P
-    Y -->|stop| B[明確 blocker]
+    Y -->|stop| Q{停止 scope}
+    Q -->|action| X[診斷或等待]
+    Q -->|goal| B[明確 blocker]
     E --> O[輸出對帳]
     R --> O
     O --> A[Acceptance evidence]
@@ -62,8 +64,24 @@ agent-collab policy evaluate \
   --policy "$AGENT_COLLAB_POLICY" \
   --checkpoint .coord/checkpoint.json \
   --json
+agent-collab checkpoint migrate \
+  --checkpoint .coord/checkpoint-v1.json \
+  --policy .coord/policy-v2.json \
+  --metadata .coord/migration-request.json \
+  --output .coord/checkpoint-v2.json
+agent-collab checkpoint advance \
+  --checkpoint .coord/checkpoint-v2.json \
+  --policy .coord/policy-v2.json \
+  --request-id stable-transition-id \
+  --expected-sha256 RAW_FILE_SHA256
 agent-collab doctor --json
 ```
+
+0.5 版新增 opt-in v2 goal slices；安裝新版不會重新解讀 v1 狀態。
+`checkpoint migrate` 會另寫 v2 checkpoint，並保留原始 v1 檔案；
+`checkpoint advance` 記錄符合條件的 slice transition。穩定 request ID 具有
+idempotent 行為；過期檔案 hash 或 lock contention 會 fail closed。詳見
+[0.5 遷移指南](docs/migration-0.5.md)。
 
 Runtime 僅使用 Python standard library。Policy 採嚴格 JSON；只有內容本身
 是有效 JSON 時才接受 `.yaml` 副檔名。已設定但無法讀取的 policy 會 fail

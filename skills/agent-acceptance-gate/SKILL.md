@@ -1,6 +1,6 @@
 ---
 name: agent-acceptance-gate
-description: Use when reconciled multi-agent output needs an evidence-based PASS, CONDITIONAL PASS, or FAIL record before a human shipping decision.
+description: Use when reconciled multi-agent output needs an evidence-based PASS, CONDITIONAL PASS, or FAIL record before authorized delivery.
 ---
 
 # agent-acceptance-gate
@@ -53,12 +53,14 @@ or explicit degraded state. Never claim PASS.
    blockers, and unresolved high-severity risks.
 6. Run triggered presets and applicable project invariants. For external facts,
    cite authoritative sources and mark whether evidence was locally verified.
-7. Evaluate canonical policy after the gate cycle. Policy `stop` forbids retry
-   or spawn; policy `checkpoint` must be persisted before further work.
+7. Evaluate canonical policy after the gate cycle. Respect v2 action/slice/goal
+   scope and eligible automatic slice continuation; v1 behavior is unchanged.
 8. Write a new immutable acceptance evidence record. Do not overwrite a prior
    run or human decision.
-9. Present the evidence to the authorized human. Human approval, decline, or
-   revision is a separate append-only decision record tied to the action hash.
+9. Report acceptance to the primary-agent and user. The host checks existing
+   authorization for delivery; do not demand a fresh approval solely because
+   review, session, or slice changed. A genuinely new human gate still needs a
+   separate recorded decision bound to the specific affected action.
 
 All numeric budgets and retry limits come only from the canonical policy. This
 skill and its presets must not copy default values.

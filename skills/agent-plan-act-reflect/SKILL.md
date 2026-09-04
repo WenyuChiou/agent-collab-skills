@@ -52,8 +52,14 @@ copied limits.
 8. Run `agent-collab policy evaluate` after the cycle.
 9. Obey PolicyDecision:
    - continue: revise the plan using the new evidence.
-   - checkpoint: write resumable state and return control.
-   - stop: do not retry or spawn; return the reasons and blocker.
+   - checkpoint: save resumable state. For v2 scope=slice with auto_continue,
+     use `agent-collab checkpoint advance` and continue the same authorized goal.
+     No human override is needed for an ordinary eligible slice transition.
+   - stop: obey its scope. An action stop prohibits repeating that action;
+     the primary-agent may diagnose read-only or prepare an evidence-backed
+     correction. A goal stop preserves the hard limit or human gate.
+   - v1 decisions retain their original checkpoint/stop semantics until explicit
+     migration; do not silently reinterpret an old record.
 
 An infrastructure error is evidence of an error, not permission to retry. A
 retry requires the next policy evaluation to permit it.
@@ -99,7 +105,13 @@ recorded human approval and appends a new event; it never edits an older event.
 ## Invariants
 
 - Evaluate after every cycle and before every spawn.
-- Stop at policy limits; do not silently extend them.
+- Preserve cumulative usage and failure history across slices, sessions, and
+  executors. Unknown tokens/cost remain unknown, never zero. Explicit goal
+  limits and native platform limits remain hard; absent limits are not invented.
+- Use stable failure identities based on operation, target, relevant inputs,
+  and error class. Renaming a task or switching executors is not a correction.
+- A waiting external service is not a failed retry. Continue only with new
+  evidence, a safe next step, and the required acceptance checks.
 - Agent self-critique is not independent acceptance.
 - Human semantic gates cannot be replaced by an aggregate agent score.
 - PASS requires cited acceptance evidence, not “looks good”.

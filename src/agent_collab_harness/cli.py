@@ -106,6 +106,51 @@ def _doctor(_args: argparse.Namespace) -> int:
     return EXIT_OK if result["status"] == "ok" else EXIT_INVALID
 
 
+def _checkpoint_mutate(args: argparse.Namespace) -> int:
+    from .checkpoint_store import advance_file, create_file
+    from .goals import migrate_goal
+
+    try:
+        policy = load_json_object(args.policy)
+        keys = load_human_authorization_keys(
+            os.environ.get("AGENT_COLLAB_HUMAN_KEYS_JSON")
+        )
+        if args.command == "advance":
+            result = advance_file(
+                args.checkpoint,
+                policy,
+                args.request_id,
+                args.expected_sha256,
+                authorization_keys=keys,
+            )
+        else:
+            metadata = load_json_object(args.metadata)
+            if set(metadata) != {"goal_id", "next_step"}:
+                raise HarnessValidationError(
+                    "migration metadata requires goal_id and next_step only"
+                )
+            result = migrate_goal(
+                load_json_object(args.checkpoint),
+                policy,
+                **metadata,
+                authorization_keys=keys,
+            )
+            create_file(args.output, result)
+    except (HarnessValidationError, OSError) as exc:
+        _emit(_validation_error("checkpoint", args.checkpoint, exc))
+        return EXIT_INVALID
+    _emit(
+        {
+            "schema_version": 2,
+            "ok": True,
+            "task_id": result["task_id"],
+            "slice_id": result["slice_id"],
+            "totals": result["totals"],
+        }
+    )
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agent-collab",
@@ -136,6 +181,23 @@ def build_parser() -> argparse.ArgumentParser:
     checkpoint_validate.add_argument("--checkpoint", required=True, type=Path)
     checkpoint_validate.add_argument("--json", action="store_true")
     checkpoint_validate.set_defaults(handler=_checkpoint_validate)
+
+    advance = checkpoint_commands.add_parser(
+        "advance", help="Atomically advance an eligible v2 slice"
+    )
+    advance.add_argument("--checkpoint", required=True, type=Path)
+    advance.add_argument("--policy", required=True, type=Path)
+    advance.add_argument("--request-id", required=True)
+    advance.add_argument("--expected-sha256", required=True)
+    advance.set_defaults(handler=_checkpoint_mutate)
+    migrate = checkpoint_commands.add_parser(
+        "migrate", help="Create a v2 copy, preserving the v1 source"
+    )
+    migrate.add_argument("--checkpoint", required=True, type=Path)
+    migrate.add_argument("--policy", required=True, type=Path)
+    migrate.add_argument("--metadata", required=True, type=Path)
+    migrate.add_argument("--output", required=True, type=Path)
+    migrate.set_defaults(handler=_checkpoint_mutate)
 
     doctor = subparsers.add_parser("doctor", help="Inspect package configuration")
     doctor.add_argument("--json", action="store_true")

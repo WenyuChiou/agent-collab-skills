@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/WenyuChiou/agent-collab-skills/blob/main/src/agent_collab_harness/schemas/policy-decision-2.json",
+  "title": "GoalDecision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "policy_id", "policy_hash", "decision", "spawn_allowed", "checkpoint_required", "reasons", "effective_limits", "observed_metrics", "scope", "auto_continue"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "policy_id": {"type": "string", "minLength": 1, "pattern": ".*\\S.*"},
+    "policy_hash": {"oneOf": [{"type": "string", "pattern": "^[a-f0-9]{64}$"}, {"type": "null"}]},
+    "decision": {"enum": ["continue", "checkpoint", "stop"]},
+    "spawn_allowed": {"type": "boolean"},
+    "checkpoint_required": {"type": "boolean"},
+    "reasons": {"type": "array", "items": {"type": "string", "minLength": 1, "pattern": ".*\\S.*"}},
+    "effective_limits": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    "observed_metrics": {"$ref": "#/$defs/totals"},
+    "scope": {"enum": ["goal", "slice", "action"]},
+    "auto_continue": {"type": "boolean"}
+  },
+  "$defs": {
+    "nullableCount": {"oneOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]},
+    "totals": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cycle", "tool_calls", "elapsed_seconds", "children_spawned", "input_tokens", "cached_input_tokens", "output_tokens", "cost_microusd"],
+      "properties": {
+        "cycle": {"type": "integer", "minimum": 0},
+        "tool_calls": {"type": "integer", "minimum": 0},
+        "elapsed_seconds": {"type": "number", "minimum": 0},
+        "children_spawned": {"type": "integer", "minimum": 0},
+        "input_tokens": {"$ref": "#/$defs/nullableCount"},
+        "cached_input_tokens": {"$ref": "#/$defs/nullableCount"},
+        "output_tokens": {"$ref": "#/$defs/nullableCount"},
+        "cost_microusd": {"$ref": "#/$defs/nullableCount"}
+      }
+    }
+  }
+}

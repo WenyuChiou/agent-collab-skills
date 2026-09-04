@@ -164,6 +164,11 @@ def evaluate_policy(
 
     checkpoint = validate_checkpoint(checkpoint_document)
     policy = validate_policy(policy_document)
+    if checkpoint["schema_version"] == 2 or policy["schema_version"] == 2:
+        if checkpoint["schema_version"] != policy["schema_version"]:
+            raise HarnessValidationError("checkpoint and policy versions must match")
+        from .goals import evaluate_goal
+        return evaluate_goal(checkpoint, policy, authorization_keys=authorization_keys)
     trusted_key_hashes = policy["human_authorization"]["key_hashes"]
     metrics = _observed_metrics(checkpoint)
     for index, human_decision in enumerate(checkpoint["decisions"]):
