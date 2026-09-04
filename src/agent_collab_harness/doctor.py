@@ -19,6 +19,9 @@ SCHEMA_FILES = (
     "agent-policy-1.json",
     "task-checkpoint-1.json",
     "policy-decision-1.json",
+    "agent-policy-2.json",
+    "task-checkpoint-2.json",
+    "policy-decision-2.json",
 )
 
 

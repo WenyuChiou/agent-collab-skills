@@ -74,7 +74,7 @@ permission for external writes.
         files_in_scope: ["docs/contract.md"]
         files_out_of_scope: ["src/**"]
         success_criteria:
-          - "human decision record approves the contract hash"
+          - "contract is traceable to the current authorized user goal"
       - id: T2
         role: delegated-executor
         slug: implement-contract
@@ -146,6 +146,12 @@ Immediately before a host spawns a task:
 
 The host must not spawn unless decision=continue and spawn_allowed=true.
 Splitter output does not override that decision.
+
+The host may delegate read-only exploration while planning, but must not turn
+a planning-only request into implementation. Prefer direct execution for small
+coherent work. Reserve capacity for required independent review and retain
+cumulative child usage when a v2 slice advances. Agent boundaries alone do not
+require commits or fresh human authorization.
 
 ## Invariants
 

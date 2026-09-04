@@ -32,7 +32,7 @@ scope and acceptance criteria
   -> update checkpoint and evaluate after each cycle
   -> reconcile non-null results while preserving failures
   -> deterministic acceptance gate
-  -> human approve / decline / revise
+  -> deliver within existing authorization, or request a genuinely new decision
 ```
 
 ## Gate triggers
@@ -49,8 +49,10 @@ substitute for authoritative sources.
 ## Failure handling
 
 - Unreadable configured policy: stop and fail closed.
-- Same failure at the policy limit: stop; do not retry or switch adapter.
-- No evidence progress at the policy limit: stop with a blocker.
+- Same failure at the policy limit: stop repeating that action. In v2, safe
+  primary-agent diagnosis remains allowed; changing adapters is not a fix.
+- No evidence progress: replan with available evidence; report a blocker when
+  no safe next step exists. Do not renew slices by renaming the same evidence.
 - Missing or `null` result: retain the status and exclude it from synthesis.
 - Decline, cancel, or timeout: preserve terminal non-success semantics.
 - Optional provider or recall outage: report degraded/SKIP only where the plan
@@ -58,6 +60,9 @@ substitute for authoritative sources.
 
 ## Shipping boundary
 
-PASS is technical acceptance, not human authorization. A separate human record
-must approve the affected action hash. Commit, merge, release, and cleanup
-remain repository-owner actions unless explicitly delegated by that owner.
+PASS is technical acceptance, not new authority. Commit, merge, release, and
+cleanup remain repository-owner actions unless explicitly delegated by that
+owner. Existing valid user authorization may already cover delivery; do not
+request it again merely because a review or session ended. New irreversible
+actions, expanded scope, and true signed-policy exceptions require a concrete
+human decision. Never synthesize a human signature for ordinary continuation.

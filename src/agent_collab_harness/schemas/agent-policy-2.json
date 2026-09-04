@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/WenyuChiou/agent-collab-skills/blob/main/src/agent_collab_harness/schemas/agent-policy-2.json",
+  "title": "GoalPolicy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "policy_id", "base_policy", "goal_limits", "reviewer_reserve"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "policy_id": {"type": "string", "minLength": 1, "pattern": ".*\\S.*"},
+    "base_policy": {"$ref": "agent-policy-1.json#/$defs/publicPolicy"},
+    "goal_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cycle": {"type": "integer", "minimum": 0},
+        "tool_calls": {"type": "integer", "minimum": 0},
+        "elapsed_seconds": {"type": "number", "minimum": 0},
+        "children_spawned": {"type": "integer", "minimum": 0},
+        "input_tokens": {"type": "integer", "minimum": 0},
+        "cached_input_tokens": {"type": "integer", "minimum": 0},
+        "output_tokens": {"type": "integer", "minimum": 0},
+        "cost_microusd": {"type": "integer", "minimum": 0}
+      }
+    },
+    "reviewer_reserve": {"type": "integer", "minimum": 0}
+  }
+}

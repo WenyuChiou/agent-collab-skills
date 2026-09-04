@@ -73,6 +73,12 @@ provider-specific task names are parse-only compatibility inputs.
 
 ## TaskCheckpoint
 
+The v1 contract below remains supported unchanged. For opt-in autonomous goal
+slices, cumulative usage, scoped decisions, atomic advance, migration, and
+rollback, read [Migration to 0.5](migration-0.5.md). The corresponding packaged
+schemas are `task-checkpoint-2.json`, `agent-policy-2.json`, and
+`policy-decision-2.json`. Do not pair a v1 checkpoint with a v2 policy implicitly.
+
 The structural interchange schema is packaged at:
 
 src/agent_collab_harness/schemas/task-checkpoint-1.json

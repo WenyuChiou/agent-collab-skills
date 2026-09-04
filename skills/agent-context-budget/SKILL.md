@@ -50,8 +50,10 @@ child spawn; prepare the packet for human-controlled execution instead.
 
 4. Obey the result:
    - continue and spawn_allowed=true: create the bounded task packet.
-   - checkpoint: write a checkpoint/primer and return control.
-   - stop or spawn_allowed=false: do not spawn; surface the reasons.
+   - checkpoint: write a checkpoint/primer. A v2 slice with auto_continue
+     advances atomically and resumes under the same goal; v1 returns control.
+   - stop or spawn_allowed=false: do not spawn. Respect v2 decision scope;
+     exhaustion of one action does not prohibit safe primary-agent diagnosis.
 5. Put only decision-relevant material in the packet:
    - goal and acceptance contract
    - explicit files and tools in scope
@@ -108,6 +110,10 @@ evidence. Agent boundaries do not imply commits.
 ## Invariants
 
 - Policy values have one machine-readable source.
+- v2 slice counters reset only through checkpoint advance; goal totals and
+  accepted evidence never reset. Retain the stricter explicit native/host limit.
+- Reserve child capacity for required independent review. Completed children
+  release active concurrency; the host's actual capacity also limits spawning.
 - No silent retry, model switch, context discard, or result truncation.
 - Missing evidence is reported as missing, not summarized as success.
 - A decline, cancellation, timeout, error, or null result remains non-success.

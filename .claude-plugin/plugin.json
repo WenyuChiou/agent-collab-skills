@@ -1,7 +1,7 @@
 {
   "name": "agent-collab-workspace",
   "description": "7 provider-neutral skills for bounded multi-agent collaboration: task splitting, policy-aware context, plan-act-reflect, reconciliation, debate, proposal-only memory, and acceptance gating.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": {
     "name": "Wenyu Chiou"
   },

@@ -62,8 +62,10 @@ implicitly committable.
 All numeric limits come from the canonical policy evaluated by
 `agent-collab policy evaluate`. Do not copy default budgets into the plan or
 this skill. Re-evaluate policy after a reconciliation cycle and before any new
-spawn. A `stop` decision forbids retry or spawn; a `checkpoint` decision must
-be persisted before continuing.
+spawn. Obey the decision's scope: a v2 action stop forbids repeating that action,
+not safe primary-agent diagnosis; a goal stop preserves the hard gate. Persist
+a checkpoint before continuing. An eligible v2 slice advances automatically
+under the same goal, while v1 retains its original stopping behavior.
 
 ## Safety rules
 

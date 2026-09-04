@@ -20,7 +20,8 @@ Agent Collab has two public surfaces that must move together:
 - Configured policy failures are fail closed. No silent retry, provider/model
   switch, or context discard.
 
-See `docs/public-harness-contract.md` and `docs/migration-0.4.md` before changing
+See `docs/public-harness-contract.md`, `docs/migration-0.4.md`, and
+`docs/migration-0.5.md` before changing
 schemas or behavior.
 
 ## Skill changes

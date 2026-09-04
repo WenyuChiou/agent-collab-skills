@@ -271,6 +271,9 @@ def validate_policy(document: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize a public or portable-harness v1 policy."""
 
     policy = _object(document, "policy")
+    if policy.get("schema_version") == 2:
+        from .goals import validate_goal_policy
+        return validate_goal_policy(policy)
     if set(policy) == PORTABLE_POLICY_KEYS:
         return _normalize_portable_policy(policy)
     _exact_keys(policy, POLICY_KEYS, POLICY_REQUIRED_KEYS, "policy")
@@ -368,6 +371,9 @@ def validate_checkpoint(document: dict[str, Any]) -> dict[str, Any]:
     """Validate and return a public TaskCheckpoint."""
 
     checkpoint = _object(document, "checkpoint")
+    if checkpoint.get("schema_version") == 2:
+        from .goals import validate_goal_checkpoint
+        return validate_goal_checkpoint(checkpoint)
     _exact_keys(
         checkpoint,
         CHECKPOINT_KEYS,

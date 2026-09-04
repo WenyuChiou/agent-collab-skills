@@ -24,7 +24,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_public_exports_and_version() -> None:
-    assert agent_collab_harness.__version__ == "0.4.0"
+    assert agent_collab_harness.__version__ == "0.5.0"
+    assert agent_collab_harness.GoalDecision
+    for name in (
+        "goal_policy",
+        "new_goal",
+        "migrate_goal",
+        "advance_checkpoint",
+        "refresh_totals",
+        "record_failure",
+        "permit_corrected_attempt",
+    ):
+        assert callable(getattr(agent_collab_harness, name))
     assert callable(agent_collab_harness.evaluate_policy)
     assert callable(agent_collab_harness.sign_human_record)
     assert callable(agent_collab_harness.validate_checkpoint)
@@ -37,6 +48,9 @@ def test_packaged_schemas_are_json_objects() -> None:
         "agent-policy-1.json",
         "task-checkpoint-1.json",
         "policy-decision-1.json",
+        "agent-policy-2.json",
+        "task-checkpoint-2.json",
+        "policy-decision-2.json",
     ):
         with schema_root.joinpath(name).open("r", encoding="utf-8") as handle:
             schema = json.load(handle)

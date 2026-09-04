@@ -1,6 +1,6 @@
 # Agent Collab Skills
 
-[繁體中文](README.zh-TW.md) · [Public harness contract](docs/public-harness-contract.md) · [0.4 migration](docs/migration-0.4.md)
+[繁體中文](README.zh-TW.md) · [Public harness contract](docs/public-harness-contract.md) · [0.4 migration](docs/migration-0.4.md) · [0.5 goal-slice migration](docs/migration-0.5.md)
 
 Provider-neutral collaboration skills plus an optional, standard-library-first
 Python harness for bounded, resumable, human-authorized agent work.
@@ -23,7 +23,9 @@ flowchart LR
     C --> Y[Canonical policy evaluation]
     Y -->|continue| S
     Y -->|checkpoint| P
-    Y -->|stop| B[Explicit blocker]
+    Y -->|stop| Q{Stop scope}
+    Q -->|action| X[Diagnose or wait]
+    Q -->|goal| B[Explicit blocker]
     E --> O[Output reconciler]
     R --> O
     O --> A[Acceptance evidence]
@@ -61,8 +63,24 @@ agent-collab policy evaluate \
   --policy "$AGENT_COLLAB_POLICY" \
   --checkpoint .coord/checkpoint.json \
   --json
+agent-collab checkpoint migrate \
+  --checkpoint .coord/checkpoint-v1.json \
+  --policy .coord/policy-v2.json \
+  --metadata .coord/migration-request.json \
+  --output .coord/checkpoint-v2.json
+agent-collab checkpoint advance \
+  --checkpoint .coord/checkpoint-v2.json \
+  --policy .coord/policy-v2.json \
+  --request-id stable-transition-id \
+  --expected-sha256 RAW_FILE_SHA256
 agent-collab doctor --json
 ```
+
+Version 0.5 adds opt-in v2 goal slices; installing it does not reinterpret v1
+state. `checkpoint migrate` writes a separate v2 checkpoint and leaves the v1
+source untouched. `checkpoint advance` records an eligible slice transition;
+stable request IDs are idempotent, while stale file hashes and lock contention
+fail closed. See the [0.5 migration guide](docs/migration-0.5.md).
 
 Runtime dependencies are standard-library only. Policy files use strict JSON;
 a `.yaml` suffix is accepted only when the file content is valid JSON. An
