@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.1] - 2026-09-04
+
+- V2 context-only limits request action-scoped compaction instead of stopping
+  the goal. Spawns remain blocked until measured context passes re-evaluation.
+- Context maintenance takes precedence over slice advance, including soft
+  transcript checkpoints; lifetime usage and failure history are not reset.
+- Explicit migration recognizes exact context-only legacy budget exhaustion,
+  preserving original source hashes and actual oversized observations. Human,
+  cancelled, ambiguous, and mixed-failure legacy stops remain intact.
+- Shared skills distinguish automatic recovery from real human intervention.
+  Deterministic replay is not evidence of a live-task interruption rate.
+- V1 behavior, CLI exit codes, schemas, native approvals, and hard goal limits
+  remain unchanged.
+
 ## [0.4.0] - 2026-08-31
 
 ### Added

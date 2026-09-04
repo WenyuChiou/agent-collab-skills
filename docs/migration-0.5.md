@@ -40,8 +40,9 @@ The new source_sha256 binds the original canonical JSON. Private legacy host
 formats must first be normalized by their adapter, retaining the raw-source
 hash in the adapter's migration evidence.
 
-Only budget_exhausted with an exact stored slice-limit reason and no other
-failed v1 gate can become running. Cancelled, declined, human-blocked, and
+Only budget_exhausted with an exact stored slice-limit reason (or, from 0.5.1,
+context-limit reason) and no other failed v1 gate can become running. Context
+metrics remain unchanged and require compaction before execution. Cancelled, declined, human-blocked, and
 ambiguous records remain stopped. Signed overrides remain bound to the old
 observations: they cannot be automatically carried through a slice reset.
 
@@ -59,6 +60,35 @@ decision keeps continue/checkpoint/stop and exit codes 0/3/4, adding `scope`
 - An action stop prevents repeating that action. The primary agent may switch
   to read-only diagnosis or waiting, without clearing the recorded failure.
 - Waiting for CI is not a failed retry. Missing evidence is not acceptance.
+
+### Local context recovery (0.5.1)
+
+Context-only limits produce checkpoint with scope=action, auto_continue=false,
+and spawn_allowed=false. This requests primary-agent maintenance, not human
+approval or goal cancellation. A slice cannot advance while context maintenance
+is pending, including the soft transcript checkpoint. Mixed action failures
+remain action stops; any real human gate or explicit total limit takes priority.
+
+The host preserves original artifacts, accepted evidence, unresolved failures,
+and recorded authorization, then creates a smaller evidence-linked active packet
+or uses native context compaction. It records measured active context sizes and
+re-evaluates before execution/spawn. Reset last_checkpoint_transcript_bytes to
+the measured active transcript when taking a new context checkpoint; never
+reduce cumulative tokens, costs, slice counters, or failure history. The
+evaluator does not compact, delete logs, or manufacture smaller measurements.
+Signed context overrides keep their original payload, action binding, and trust
+checks: v2 allows the measured active context to shrink below the previously
+authorized observation. The authorization must still predate exhaustion of the
+original limit. This exception does not apply to slice/retry/concurrency usage,
+does not authorize slice advance with overrides, and does not change v1.
+If safe compaction is unavailable, report that concrete limitation; do not loop
+without progress. Unreadable/corrupt policy or checkpoints remain fail closed:
+read-only diagnosis is allowed, inventing replacement authorization is not.
+
+An action stop or an automatic maintenance step is not itself human intervention.
+Measure real task-level interventions separately from local recovery and external
+waiting; count each affected logical task once and retain the reason. Synthetic
+replay proves decision behavior, not an intervention rate for real user tasks.
 
     agent-collab checkpoint advance --checkpoint PATH --policy V2_POLICY --request-id ID --expected-sha256 RAW_FILE_SHA256
 

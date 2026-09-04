@@ -52,6 +52,11 @@ child spawn; prepare the packet for human-controlled execution instead.
    - continue and spawn_allowed=true: create the bounded task packet.
    - checkpoint: write a checkpoint/primer. A v2 slice with auto_continue
      advances atomically and resumes under the same goal; v1 returns control.
+     For v2 scope=action with context_compaction_required, perform local context
+     maintenance without asking for renewed approval: preserve full artifacts,
+     acceptance evidence, failures, and authorization; build a smaller linked
+     packet or use native compaction, record measured sizes, then re-evaluate.
+     Do not spawn or advance a slice while this context gate is pending.
    - stop or spawn_allowed=false: do not spawn. Respect v2 decision scope;
      exhaustion of one action does not prohibit safe primary-agent diagnosis.
 5. Put only decision-relevant material in the packet:
@@ -115,6 +120,9 @@ evidence. Agent boundaries do not imply commits.
 - Reserve child capacity for required independent review. Completed children
   release active concurrency; the host's actual capacity also limits spawning.
 - No silent retry, model switch, context discard, or result truncation.
+- Compaction changes active context, not cumulative usage or failure history.
+  If safe compaction is unavailable, report that limitation, not a generic
+  request to continue. Never clear an ambiguous legacy blocker automatically.
 - Missing evidence is reported as missing, not summarized as success.
 - A decline, cancellation, timeout, error, or null result remains non-success.
 - Recall systems may suggest context; they do not override repository state or

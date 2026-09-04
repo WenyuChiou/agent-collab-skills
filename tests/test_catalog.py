@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 EXPECTED_SKILLS = {
     "agent-acceptance-gate",
     "agent-context-budget",
