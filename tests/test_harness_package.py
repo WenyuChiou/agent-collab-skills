@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_public_exports_and_version() -> None:
-    assert agent_collab_harness.__version__ == "0.5.0"
+    assert agent_collab_harness.__version__ == "0.5.1"
     assert agent_collab_harness.GoalDecision
     for name in (
         "goal_policy",

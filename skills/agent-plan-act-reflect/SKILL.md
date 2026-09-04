@@ -55,6 +55,9 @@ copied limits.
    - checkpoint: save resumable state. For v2 scope=slice with auto_continue,
      use `agent-collab checkpoint advance` and continue the same authorized goal.
      No human override is needed for an ordinary eligible slice transition.
+     For a v2 action checkpoint requiring context compaction, preserve evidence
+     and authorization in a smaller linked packet, record measured active sizes,
+     then re-evaluate before execution. Maintenance is not a human approval gate.
    - stop: obey its scope. An action stop prohibits repeating that action;
      the primary-agent may diagnose read-only or prepare an evidence-backed
      correction. A goal stop preserves the hard limit or human gate.
@@ -112,6 +115,10 @@ recorded human approval and appends a new event; it never edits an older event.
   and error class. Renaming a task or switching executors is not a correction.
 - A waiting external service is not a failed retry. Continue only with new
   evidence, a safe next step, and the required acceptance checks.
+- Diagnose recoverable action failures and perform safe context maintenance
+  before escalating. Do not ask the user to renew unchanged authorization.
+  Count actual human intervention separately from automatic recovery or waiting;
+  fewer pauses never justify bypassing a real gate or claiming unmeasured success.
 - Agent self-critique is not independent acceptance.
 - Human semantic gates cannot be replaced by an aggregate agent score.
 - PASS requires cited acceptance evidence, not “looks good”.

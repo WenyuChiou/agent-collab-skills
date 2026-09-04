@@ -9,11 +9,18 @@ import math
 from .errors import HarnessValidationError
 from .io import canonical_sha256
 from .models import PolicyDecision
+from .policy import CONTEXT_METRICS
 
 
 COUNTERS = ("cycle", "tool_calls", "elapsed_seconds", "children_spawned")
 USAGE = ("input_tokens", "cached_input_tokens", "output_tokens", "cost_microusd")
 TOTALS = COUNTERS + USAGE
+# These bound the active context, not the lifetime goal usage. The host must
+# actually compact and measure before executing again; evaluation never does it.
+CONTEXT_REASON_PREFIXES = tuple(
+    f"limit_reached:{metric}="
+    for metric in sorted(CONTEXT_METRICS)
+)
 EXTRA = {
     "schema_version",
     "task_id",
@@ -437,7 +444,7 @@ def permit_corrected_attempt(state, *, input_sha256, evidence_ref):
 
 
 def migrate_goal(task, policy, *, goal_id, next_step, authorization_keys=None):
-    """Explicitly migrate a v1 task; only proven slice-only exhaustion resumes."""
+    """Migrate proven slice/context exhaustion; retain all actual observations."""
     from .policy import evaluate_policy
 
     policy = validate_goal_policy(policy)
@@ -446,7 +453,7 @@ def migrate_goal(task, policy, *, goal_id, next_step, authorization_keys=None):
         task, policy["base_policy"], authorization_keys=authorization_keys
     )
     if task["status"] == "budget_exhausted":
-        allowed = (
+        allowed = CONTEXT_REASON_PREFIXES + (
             "task_status:budget_exhausted",
             "limit_reached:cycle=",
             "limit_reached:tool_calls=",
@@ -483,8 +490,8 @@ def evaluate_goal(state, policy, *, authorization_keys=None):
     policy = validate_goal_policy(policy)
     task = deepcopy(state["task"])
     original = deepcopy(task)
-    # Only these budgets become slice boundaries. Security, signed decisions,
-    # hard context limits, and explicit terminal states retain their v1 gates.
+    # Only these budgets become slice boundaries. Context gates still prevent
+    # execution, but request local maintenance instead of ending the goal.
     for key in ("cycle", "tool_calls", "elapsed_seconds", "children_spawned"):
         task[key] = 0
     if state["action_kind"] in ("diagnose", "wait"):
@@ -492,16 +499,14 @@ def evaluate_goal(state, policy, *, authorization_keys=None):
         task["no_evidence_cycles"] = 0
         if task["status"] in ("error", "timed_out"):
             task["status"] = "running"
-    # Verify signatures and overrides against ORIGINAL observations first.
-    evaluate_policy(
-        original, policy["base_policy"], authorization_keys=authorization_keys
-    )
-    # Overrides refer to original observations; use their effective limits and
-    # already-verified decisions, without altering any stored authorization.
-    from .policy import _effective_limits, _observed_metrics
+    # Signatures retain their original payload. V2 active context may shrink;
+    # cumulative/slice/retry observations still enforce monotonic authorization.
+    from .policy import _effective_limits, _observed_metrics, _verify_authorizations
 
+    _verify_authorizations(original, policy["base_policy"], authorization_keys)
     effective = _effective_limits(
-        original, policy["base_policy"], _observed_metrics(original)
+        original, policy["base_policy"], _observed_metrics(original),
+        context_can_shrink=True,
     )
     task["overrides"] = []
     base = deepcopy(policy["base_policy"])
@@ -512,8 +517,11 @@ def evaluate_goal(state, policy, *, authorization_keys=None):
     scope = "goal" if decision == "stop" else "action"
     auto = False
     limit = effective
+    context_reasons = [r for r in reasons if r.startswith(CONTEXT_REASON_PREFIXES)]
+    context_pending = bool(context_reasons) or old.decision == "checkpoint"
     if reasons and all(
         r in ("task_status:error", "task_status:timed_out")
+        or r.startswith(CONTEXT_REASON_PREFIXES)
         or r.startswith(
             (
                 "limit_reached:same_failure_retries=",
@@ -524,6 +532,10 @@ def evaluate_goal(state, policy, *, authorization_keys=None):
         for r in reasons
     ):
         scope = "action"
+    if context_reasons and len(context_reasons) == len(reasons):
+        decision = "checkpoint"
+    if context_pending:
+        reasons.append("context_compaction_required")
     if state["requires_human"]:
         decision = "stop"
         scope = "goal"
@@ -548,7 +560,7 @@ def evaluate_goal(state, policy, *, authorization_keys=None):
         ("children_spawned", "max_children_per_parent"),
     ]
     reached = [key for key, cap in boundaries if original.get(key, 0) >= limit[cap]]
-    if decision != "stop" and reached:
+    if decision != "stop" and reached and not context_pending:
         decision = "checkpoint"
         scope = "slice"
         reasons += ["slice_limit:" + k for k in reached]

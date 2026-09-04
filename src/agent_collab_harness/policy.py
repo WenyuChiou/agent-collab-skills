@@ -33,6 +33,10 @@ LIMIT_OBSERVED_METRICS = {
     "max_children_per_parent": "children_spawned",
     "max_concurrency": "active_children",
 }
+CONTEXT_METRICS = frozenset({
+    "transcript_bytes", "task_packet_tokens", "parent_summary_tokens",
+    "memory_digest_tokens", "child_result_words",
+})
 
 TERMINAL_OR_PAUSED_STATUSES = {
     "waiting_for_human",
@@ -70,6 +74,8 @@ def _effective_limits(
     checkpoint: dict[str, Any],
     policy: dict[str, Any],
     metrics: dict[str, int | float],
+    *,
+    context_can_shrink: bool = False,
 ) -> dict[str, int]:
     limits = dict(policy["limits"])
     for override in checkpoint["overrides"]:
@@ -82,7 +88,9 @@ def _effective_limits(
                 f"checkpoint override for {limit} was not authorized before exhaustion: "
                 f"observed_value={observed_value} >= {limits[limit]}"
             )
-        if observed_value > metrics[metric_name]:
+        if observed_value > metrics[metric_name] and not (
+            context_can_shrink and metric_name in CONTEXT_METRICS
+        ):
             raise HarnessValidationError(
                 f"checkpoint override observed_value for {limit} exceeds current "
                 f"{metric_name}: {observed_value} > {metrics[metric_name]}"
@@ -154,6 +162,17 @@ def _decision_time(record: dict[str, Any]) -> datetime:
     return datetime.fromisoformat(normalized)
 
 
+def _verify_authorizations(checkpoint, policy, authorization_keys):
+    """Verify unchanged signed records before either evaluator uses overrides."""
+    trusted_key_hashes = policy["human_authorization"]["key_hashes"]
+    for field in ("decisions", "overrides"):
+        for index, record in enumerate(checkpoint[field]):
+            _verify_human_record(
+                record, authorization_keys, trusted_key_hashes,
+                f"checkpoint.{field}[{index}]",
+            )
+
+
 def evaluate_policy(
     checkpoint_document: dict[str, Any],
     policy_document: dict[str, Any],
@@ -169,22 +188,8 @@ def evaluate_policy(
             raise HarnessValidationError("checkpoint and policy versions must match")
         from .goals import evaluate_goal
         return evaluate_goal(checkpoint, policy, authorization_keys=authorization_keys)
-    trusted_key_hashes = policy["human_authorization"]["key_hashes"]
     metrics = _observed_metrics(checkpoint)
-    for index, human_decision in enumerate(checkpoint["decisions"]):
-        _verify_human_record(
-            human_decision,
-            authorization_keys,
-            trusted_key_hashes,
-            f"checkpoint.decisions[{index}]",
-        )
-    for index, override in enumerate(checkpoint["overrides"]):
-        _verify_human_record(
-            override,
-            authorization_keys,
-            trusted_key_hashes,
-            f"checkpoint.overrides[{index}]",
-        )
+    _verify_authorizations(checkpoint, policy, authorization_keys)
     limits = _effective_limits(checkpoint, policy, metrics)
     reasons: list[str] = []
 
