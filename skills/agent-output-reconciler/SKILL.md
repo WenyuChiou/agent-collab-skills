@@ -41,6 +41,14 @@ may be parsed for migration only and must not influence current routing.
 8. Hand the report to `agent-acceptance-gate`. Do not convert a reconciliation
    recommendation into an acceptance decision.
 
+Use the [task-content evidence review](../../docs/task-content-evidence.md) to
+bind each result to the current task, run/attempt, baseline, and independently
+observed candidate. Preserve stale or wrong-task evidence as unverified. Account
+for existing dirty state and parallel writers before attributing a delta. An
+unchanged result needs contract permission, a reason, and current criterion
+evidence; mtimes alone cannot prove or disprove success. Content identity does
+not establish semantic correctness or authorize a transitive scope expansion.
+
 ## Output contract
 
 The report must contain:

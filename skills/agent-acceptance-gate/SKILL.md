@@ -38,6 +38,13 @@ Presets encode additional failure-mode checks; they do not replace independent
 review or factual source verification. If a preset cannot run, report a blocker
 or explicit degraded state. Never claim PASS.
 
+Presets are declarative review contracts, not an executable engine in the
+Python harness. For delegated content tasks, follow the required
+[task-content evidence review](../../docs/task-content-evidence.md). Retained
+mtime checks are advisory: reject missing/stale task evidence, verify the
+current baseline/candidate and scope, and allow justified unchanged output only
+when the task contract permits it. Hashes identify bytes, not semantic truth.
+
 ## Workflow
 
 1. Validate the plan, checkpoint, and policy. Unreadable configured policy is a
