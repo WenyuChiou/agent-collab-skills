@@ -24,8 +24,8 @@ invocation_param:
     default: ""
   brief_file:
     description: |
-      Optional task brief used to verify that claimed target writes happened
-      after execution began. Omit for primary-agent or manual edits.
+      Optional task brief binding the delegated task's content-evidence review.
+      Omit for primary-agent or manual edits. File times are advisory only.
     required: false
     default: ""
 
@@ -122,7 +122,28 @@ checks:
     files_param: files
     reference_file_param: brief_file
     skip_when_empty: true
+    severity: warn
+    note: |
+      Retained for adapter compatibility. A newer mtime is not proof of an edit;
+      unchanged or timestamp-preserving writes can also be valid. Never use
+      this observation alone to pass or fail task-content evidence.
+
+  - id: task_content_evidence
+    type: manual_check
+    files_param: files
+    reference_file_param: brief_file
+    skip_when_empty: true
     severity: fail
+    requirements:
+      - "Bind the evidence to the current run, task, and exact brief; reject missing, stale, or wrong-task records."
+      - "Compare the primary-agent's pre-task baseline with the independently observed candidate content; include existing dirty state and task-bounded diff references."
+      - "Verify all observed changed paths against authorized scope; a worker's claimed file list is insufficient."
+      - "An unchanged result is valid only when the task permits it, explains why, and supplies current criterion evidence; never force a token edit."
+      - "Content hashes prove byte identity, not semantic correctness; review the current candidate against the declared criterion."
+    note: |
+      See docs/task-content-evidence.md. This preset is a declarative review
+      contract, not a bundled acceptance engine. If the host cannot verify the
+      required evidence, report BLOCKED or FAIL instead of claiming PASS.
 
 failure_action: |
   Preserve the failed check and evidence. Request a human-authorized targeted

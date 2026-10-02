@@ -57,6 +57,12 @@ permission for external writes.
 9. Write .ai/task_<NNN>_<slug>.md for each non-inline task.
 10. Return the ready task ids and dependency order. Do not spawn.
 
+Before execution, the host captures the attributable pre-task baseline and
+states whether edits are required or unchanged output is permitted. Use the
+[task-content evidence review](../../docs/task-content-evidence.md); file times
+and a process-success status cannot establish acceptance. A read-only role
+does not need to manufacture an edit.
+
 ## Plan shape
 
     schema_version: 2
@@ -129,6 +135,8 @@ autonomously.
     - files_changed
     - tests_run
     - evidence_refs
+    - baseline/candidate references bound to this task and run/attempt
+    - change-required or permitted-unchanged result, with criterion evidence
     - risks
     - blockers
 
