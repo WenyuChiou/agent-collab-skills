@@ -19,7 +19,21 @@ PRESET = ROOT / "skills/agent-acceptance-gate/presets/multi-locale-mirror-sync.y
 
 
 def _checks():
-    return {item["id"]: item for item in yaml.safe_load(PRESET.read_text())["checks"]}
+    return {item["id"]: item for item in yaml.safe_load(
+        PRESET.read_text(encoding="utf-8"))["checks"]}
+
+
+def test_contract_reads_ignore_locale_default_encoding(monkeypatch):
+    read_text = Path.read_text
+
+    def require_utf8(path, encoding=None, errors=None):
+        # Windows cp1252 cannot decode the preset's UTF-8 Chinese text. Do not
+        # let an environment-wide UTF-8 mode mask an implicit-encoding read.
+        assert encoding == "utf-8"
+        return read_text(path, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", require_utf8)
+    assert "task_content_evidence" in _checks()
 
 
 def _digest(text):
@@ -29,10 +43,10 @@ def _digest(text):
 def _files(tmp_path, before, after, target_time):
     brief = tmp_path / "brief.md"
     target = tmp_path / "README.md"
-    brief.write_text("Sync the target if needed.")
-    target.write_text(before)
+    brief.write_text("Sync the target if needed.", encoding="utf-8")
+    target.write_text(before, encoding="utf-8")
     baseline = hashlib.sha256(target.read_bytes()).hexdigest()
-    target.write_text(after)
+    target.write_text(after, encoding="utf-8")
     os.utime(brief, (1000, 1000))
     os.utime(target, (target_time, target_time))
     return brief, target, baseline
@@ -57,7 +71,7 @@ def test_declared_mtime_predicate_rejects_legitimate_idempotent_noop(tmp_path):
 
 
 def test_preset_retains_legacy_mtime_as_advisory_only():
-    data = yaml.safe_load(PRESET.read_text())
+    data = yaml.safe_load(PRESET.read_text(encoding="utf-8"))
     assert "brief_file" in data["invocation_param"]
     mtime = _checks()["post_brief_mtime_check"]
     assert mtime["type"] == "file_mtime_after"
@@ -83,7 +97,7 @@ def test_preset_requires_explicit_content_evidence_review():
     "agent-task-splitter", "agent-output-reconciler", "agent-acceptance-gate",
 ])
 def test_active_skills_link_the_shared_evidence_contract(skill):
-    text = (ROOT / "skills" / skill / "SKILL.md").read_text()
+    text = (ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
     assert "docs/task-content-evidence.md" in text
 
 
