@@ -5,13 +5,23 @@ single-turn work does not cover.
 
 ## Invoke
 
-- before two or more bounded tasks run in parallel;
-- before a child, delegated executor, or reviewer is spawned;
-- after every plan-act-reflect cycle;
-- when the task must survive interruption or resume;
-- when results need reconciliation across agents or tools;
-- when memory promotion or semantic acceptance needs a human decision;
-- when locale, catalog, or factual-claim presets are triggered.
+- before two or more lanes (subagents, workflow lanes, delegates) run on one
+  goal: `agent-task-splitter`;
+- when launching parallel or background lanes, or when a result or handoff
+  would crowd the primary context: `agent-context-budget`;
+- when a consequential decision has two plausible options: `agent-debate`;
+- before committing or pushing merged lane output, or a diff that triggers a
+  preset: `agent-acceptance-gate`.
+
+## Native or harness mode
+
+Native mode is the default for in-session fan-out with the user present: the
+lane table and briefs live in the conversation, the host's limits apply, and
+no plan, packet, or checkpoint is written to `.coord/` (a memory proposal at
+most). Harness mode adds the policy and checkpoint
+contract when a round spans sessions or tools, runs unattended, must resume,
+needs a signed human gate, or `AGENT_COLLAB_POLICY` is configured. See
+[native lanes](native-lanes.md).
 
 ## Do not invoke
 
@@ -25,13 +35,12 @@ single-turn work does not cover.
 
 ```text
 scope and acceptance criteria
-  -> validate policy and checkpoint
-  -> split provider-neutral task packets
-  -> evaluate policy before each spawn
-  -> execute and record evidence
-  -> update checkpoint and evaluate after each cycle
-  -> reconcile non-null results while preserving failures
-  -> deterministic acceptance gate
+  -> lane table: role, model tier, disjoint scope, capped return per lane
+  -> fix the merge and verification step
+  -> (harness mode) validate policy and checkpoint; evaluate before each spawn
+  -> run lanes and record evidence
+  -> acceptance gate: reconcile results (failures preserved), run presets,
+     verify the merged result
   -> deliver within existing authorization, or request a genuinely new decision
 ```
 

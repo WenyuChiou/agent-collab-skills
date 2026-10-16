@@ -1,5 +1,10 @@
 # Negative Example: Gemini Drift
 
+> Historical evidence only (2026-05 dogfood). The Gemini lane was archived
+> on 2026-06-18 and is not an active route; see
+> [Gemini history](migration-0.4.md#gemini-history). Skill names and step
+> numbers below refer to the release current at the time, not to 0.6.
+
 Earlier dogfood runs showed a common failure mode: Gemini received an
 inline prompt derived from a task file, then wrote a reconciliation-like
 report that treated all tasks as Claude tasks and invented slugs that

@@ -1,7 +1,9 @@
 # Provider-neutral walkthrough
 
 This walkthrough uses the samples in `examples/` to demonstrate a bounded
-auth refactor.
+auth refactor in harness mode (policy and checkpoint files). An in-session
+fan-out in native mode follows the same steps without `.coord/` files; see
+[native lanes](native-lanes.md).
 
 ## 1. Split
 
@@ -28,7 +30,8 @@ retry or replacement spawn.
 ## 3. Preserve results
 
 The reviewer succeeds, the executor produces a failed compatibility test, and
-the dependent synthesizer is not run. The reconciler records all three states.
+the dependent synthesizer is not run. The acceptance gate's reconcile step
+records all three states.
 It does not replace the missing synthesis with an empty success or hide the
 executor's prose.
 
@@ -36,7 +39,7 @@ See `examples/reconciliation_001.md.sample`.
 
 ## 4. Gate
 
-The acceptance gate verifies declared commands, evidence references, scope,
+The same gate then verifies declared commands, evidence references, scope,
 and triggered presets. The sample technical verdict is FAIL because a required
 test failed.
 

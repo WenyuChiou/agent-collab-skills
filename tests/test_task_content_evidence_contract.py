@@ -93,8 +93,10 @@ def test_preset_requires_explicit_content_evidence_review():
         assert phrase in text
 
 
+# agent-output-reconciler is a redirect stub since 0.6.0; its reconcile step
+# lives in agent-acceptance-gate.
 @pytest.mark.parametrize("skill", [
-    "agent-task-splitter", "agent-output-reconciler", "agent-acceptance-gate",
+    "agent-task-splitter", "agent-acceptance-gate",
 ])
 def test_active_skills_link_the_shared_evidence_contract(skill):
     text = (ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")

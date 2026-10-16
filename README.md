@@ -1,6 +1,6 @@
 # Agent Collab Skills
 
-[繁體中文](README.zh-TW.md) · [Public harness contract](docs/public-harness-contract.md) · [0.4 migration](docs/migration-0.4.md) · [0.5 goal-slice migration](docs/migration-0.5.md)
+[繁體中文](README.zh-TW.md) · [Public harness contract](docs/public-harness-contract.md) · [Native lanes](docs/native-lanes.md) · [0.6 migration](docs/migration-0.6.md) · [0.5 goal-slice migration](docs/migration-0.5.md) · [0.4 migration](docs/migration-0.4.md)
 
 Provider-neutral collaboration skills plus an optional, standard-library-first
 Python harness for bounded, resumable, human-authorized agent work.
@@ -26,7 +26,7 @@ flowchart LR
     Y -->|stop| Q{Stop scope}
     Q -->|action| X[Diagnose or wait]
     Q -->|goal| B[Explicit blocker]
-    E --> O[Output reconciler]
+    E --> O[Acceptance gate: reconcile]
     R --> O
     O --> A[Acceptance evidence]
     A --> H
@@ -37,17 +37,36 @@ The deterministic layer controls state and limits. Agents produce prose,
 implementation, review, and synthesis. A human remains responsible for
 breaking contracts, memory promotion, semantic acceptance, and shipping.
 
-## Seven skills
+## Skills
 
-| Skill | Responsibility |
-|---|---|
-| `agent-task-splitter` | Create provider-neutral task packets, roles, dependencies, scopes, and acceptance criteria. |
-| `agent-context-budget` | Validate policy/checkpoint context and prepare bounded handoffs without copying numeric defaults. |
-| `agent-plan-act-reflect` | Run evidence-producing correction cycles with policy evaluation after each cycle and before each spawn. |
-| `agent-output-reconciler` | Preserve missing and failed results while surfacing scope drift, contradictions, and conflicts. |
-| `agent-debate` | Stage bounded adversarial review for genuinely contested decisions; never decide truth by vote. |
-| `agent-shared-memory` | Emit proposals and append approved events; never rewrite canonical memory. |
-| `agent-acceptance-gate` | Produce immutable PASS, CONDITIONAL PASS, or FAIL evidence before a separate human decision. |
+Each skill fires on a situation, not only on a request:
+
+| Skill | Use when | Responsibility |
+|---|---|---|
+| `agent-task-splitter` | about to run two or more subagents, workflow lanes, or delegates on one goal | Fan-out planner: one lane table with role, model tier, disjoint write scope, bounded brief, and capped return per lane, plus the merge and verification step fixed before launch. |
+| `agent-context-budget` | launching parallel or background lanes, or a result or handoff is larger than a short summary | Cap returns (summary inline, detail by path), choose cheap tiers for mechanical lanes, write primers, and record durable decisions as proposals. |
+| `agent-debate` | a consequential decision has two plausible options | Two opposed reviewers on the same evidence with a round cap stated before launch; the synthesis goes to the human. Never decides truth by vote. |
+| `agent-acceptance-gate` | about to commit or push merged lane output, locale variants, catalog entries, or claims about named frontier models (benchmarks, release dates, licenses) | Reconcile results (failures preserved), run the triggered preset, and return immutable PASS, CONDITIONAL PASS, or FAIL evidence. |
+
+Redirect stubs, removed in 0.7.0 ([migration 0.6](docs/migration-0.6.md)):
+`agent-output-reconciler` → `agent-acceptance-gate`;
+`agent-shared-memory` → `agent-context-budget`;
+`agent-plan-act-reflect` → deprecated, its harness loop now lives in
+`agent-context-budget`.
+
+## Native mode and harness mode
+
+Native mode is the default. When every lane runs inside one host session with
+the user present, the lane table and briefs live in the conversation, the
+host's own limits and permissions apply, and no plan, packet, or checkpoint is
+written to `.coord/` (only a memory proposal may be).
+[Native lanes](docs/native-lanes.md) maps the roles to Claude Code's Agent,
+SendMessage, Workflow, and worktree mechanisms.
+
+Harness mode adds the policy and checkpoint contract below when a round spans
+sessions or tools, runs unattended, must resume after an interruption, needs a
+signed human gate, or `AGENT_COLLAB_POLICY` is configured. A configured policy
+always applies and fails closed when unreadable.
 
 ## Public harness package
 
@@ -138,6 +157,7 @@ package validates and evaluates the machine-readable contract.
 ```bash
 python -m pip install -e .
 python -m pytest -q
+python scripts/check_skill_contracts.py
 agent-collab doctor --json
 ```
 

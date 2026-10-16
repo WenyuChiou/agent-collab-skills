@@ -52,7 +52,11 @@ def test_skill_contracts_use_canonical_policy_without_numeric_defaults():
         "8 kb",
         "200-400 words",
     )
-    for skill in (ROOT / "skills").glob("*/SKILL.md"):
+    contracts = [
+        *(ROOT / "skills").glob("*/SKILL.md"),
+        *(ROOT / "skills").glob("*/references/*.md"),
+    ]
+    for skill in contracts:
         text = skill.read_text(encoding="utf-8").lower()
         for pattern in numeric_default_patterns:
             assert pattern not in text, f"{skill}: duplicated policy value {pattern}"
@@ -60,9 +64,9 @@ def test_skill_contracts_use_canonical_policy_without_numeric_defaults():
     budget = (ROOT / "skills" / "agent-context-budget" / "SKILL.md").read_text(
         encoding="utf-8"
     )
-    par = (ROOT / "skills" / "agent-plan-act-reflect" / "SKILL.md").read_text(
-        encoding="utf-8"
-    )
+    par = (
+        ROOT / "skills" / "agent-context-budget" / "references" / "harness-loop.md"
+    ).read_text(encoding="utf-8")
     assert "agent-collab policy evaluate" in budget
     assert "agent-collab policy evaluate" in par
 
@@ -71,7 +75,7 @@ def test_scratch_and_memory_contracts_are_explicit():
     splitter = (ROOT / "skills" / "agent-task-splitter" / "SKILL.md").read_text(
         encoding="utf-8"
     )
-    memory = (ROOT / "skills" / "agent-shared-memory" / "SKILL.md").read_text(
+    memory = (ROOT / "skills" / "agent-context-budget" / "SKILL.md").read_text(
         encoding="utf-8"
     )
     assert "scratch" in splitter.lower()

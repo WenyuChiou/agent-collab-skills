@@ -22,12 +22,13 @@ Each reviewer receives the same packet:
 - Argue only the assigned position.
 - Identify assumptions and cite evidence references.
 - Do not modify source files or canonical memory.
-- Use the current policy and checkpoint; do not invent budgets.
+- Stop at the round cap stated in this packet (in harness mode, the policy's
+  cap); do not invent budgets.
 ```
 
 Reviewers should commit to the strongest defensible form of the assigned
-position, then engage with the strongest opposing evidence in a later cycle if
-policy permits. A reviewer that changes its conclusion should state that
+position, then engage with the strongest opposing evidence in the rebuttal
+round if the round cap allows it. A reviewer that changes its conclusion should state that
 plainly rather than simulate disagreement.
 
 ## Synthesis frame
@@ -58,8 +59,8 @@ missing reviewer into an empty success or use vote count as a truth signal.
 
 ## Guardrails
 
-- Evaluate canonical policy before each spawn and after every cycle.
-- Let policy determine the number and size of cycles.
+- State the round cap before launch. In harness mode, evaluate the canonical
+  policy before each spawn and after every cycle and let it set the cap.
 - Keep debate scratch uncommitted unless a project explicitly promotes an
   acceptance evidence artifact.
 - Preserve every human decision as an append-only record with gate, actor,

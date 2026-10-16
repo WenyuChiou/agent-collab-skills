@@ -7,7 +7,8 @@ labels: bug
 
 ## Which skill?
 
-- `agent-task-splitter` / `agent-context-budget` / `agent-plan-act-reflect` / `agent-output-reconciler` / `agent-debate` / `agent-shared-memory` / `agent-acceptance-gate`
+- `agent-task-splitter` / `agent-context-budget` / `agent-debate` / `agent-acceptance-gate`
+- redirect stub (until 0.7.0): `agent-output-reconciler` / `agent-shared-memory` / `agent-plan-act-reflect`
 
 ## What did you ask the primary agent to do?
 

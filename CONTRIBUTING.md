@@ -2,7 +2,8 @@
 
 Agent Collab has two public surfaces that must move together:
 
-1. the seven skills under `skills/`;
+1. the skills under `skills/` (four active skills and, until 0.7.0, three
+   redirect stubs);
 2. the `agent-collab-harness` Python package and `agent-collab` CLI.
 
 ## Contracts
@@ -20,9 +21,9 @@ Agent Collab has two public surfaces that must move together:
 - Configured policy failures are fail closed. No silent retry, provider/model
   switch, or context discard.
 
-See `docs/public-harness-contract.md`, `docs/migration-0.4.md`, and
-`docs/migration-0.5.md` before changing
-schemas or behavior.
+See `docs/public-harness-contract.md`, `docs/migration-0.4.md`,
+`docs/migration-0.5.md`, and `docs/migration-0.6.md` before changing
+schemas or behavior. `docs/native-lanes.md` is the Claude Code host adapter.
 
 ## Skill changes
 
@@ -30,11 +31,14 @@ Every `SKILL.md` must:
 
 - have valid YAML frontmatter;
 - use a directory-matching `name`;
-- start its description with `Use when`;
+- start its description with `Use when` and name the situation that makes it
+  apply (about to fan out, about to commit), not only a user request;
 - state inputs, outputs, policy boundary, and prohibited mutations;
 - avoid provider-specific routing in the public contract.
 
-Run the skill validator for every changed skill directory.
+Run `python scripts/check_skill_contracts.py`. It checks frontmatter, size
+caps, situational description terms, redirect stubs, and that every gate
+preset's `trigger` matches the gate description and preset table.
 
 ## Package changes
 

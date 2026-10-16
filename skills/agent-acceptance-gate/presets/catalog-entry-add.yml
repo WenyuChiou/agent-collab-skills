@@ -17,6 +17,12 @@ description: |
   counts, license values, and have been confirmed not-archived /
   recently-pushed. Catches fabricated entries before merge.
 
+# Kept in sync with the agent-acceptance-gate description and preset
+# table by scripts/check_skill_contracts.py.
+trigger:
+  situation: "a diff adds catalog or listing entries"
+  description_keyword: "catalog"
+
 invocation_param:
   catalog_file:
     description: "Path to the catalog file being added to"

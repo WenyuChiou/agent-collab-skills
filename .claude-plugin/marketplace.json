@@ -7,15 +7,15 @@
   },
   "metadata": {
     "description": "Practical skills for bounded multi-agent work without losing state, hiding failed results, or shipping without evidence and human authorization.",
-    "version": "0.5.1"
+    "version": "0.6.0"
   },
   "plugins": [
     {
       "name": "agent-collab-workspace",
-      "description": "7 multi-agent collaboration skills: task splitter, context budget, plan-act-reflect, output reconciler, debate, proposal-only shared memory, and acceptance gate.",
+      "description": "4 multi-agent collaboration skills: fan-out planner, context budget with proposal-only memory, debate, and an acceptance gate that reconciles lane output; 3 redirect stubs remain until 0.7.0.",
       "category": "productivity",
       "homepage": "https://github.com/WenyuChiou/agent-collab-skills",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "strict": true,
       "source": {
         "source": "url",

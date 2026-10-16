@@ -8,6 +8,20 @@ cross-field limits or uniqueness-by-property rules. Policy values belong in one
 policy document. Skills may name fields and commands, but must not copy numeric
 limits.
 
+## Modes
+
+Native mode is the default for an in-session fan-out with the user present.
+Every invariant in this contract applies except policy and checkpoint
+evaluation and the `.coord/` plan, packet, and checkpoint files; the host's
+own limits and permissions govern spawning. Native mode may write a memory
+proposal under `.coord/memory-proposals/`, but applying it requires the
+signed human approval described below, which is harness mode. Harness mode
+applies the full policy and checkpoint contract below when a round spans
+sessions or tools, runs unattended, must resume, needs a signed human gate, or
+`AGENT_COLLAB_POLICY` is configured. A configured policy
+always applies and fails closed when unreadable. The Claude Code mapping is in
+[native lanes](native-lanes.md).
+
 ## Roles
 
 Plans and coordination artifacts use roles rather than model or provider names:
@@ -160,7 +174,7 @@ spawn_allowed=false, and exit code 4.
 Evaluate:
 
 1. Before each child or delegated-executor spawn.
-2. After each plan-act-reflect cycle.
+2. After each harness-loop cycle (formerly plan-act-reflect).
 3. Before retrying the same failure.
 
 The caller must obey decision, spawn_allowed, and checkpoint_required.

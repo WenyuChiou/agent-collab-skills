@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.5.1"
+VERSION = "0.6.0"
 EXPECTED_SKILLS = {
     "agent-acceptance-gate",
     "agent-context-budget",
@@ -25,7 +25,7 @@ def _frontmatter(text: str) -> str:
     return text[4:end]
 
 
-def test_exactly_seven_active_skills_have_valid_frontmatter():
+def test_four_active_skills_and_three_stubs_have_valid_frontmatter():
     skill_dirs = {
         path.parent.name for path in (ROOT / "skills").glob("*/SKILL.md")
     }
@@ -61,7 +61,8 @@ def test_manifests_are_synchronized_and_provider_neutral():
     assert entry["source"]["ref"] == "main"
 
     active_text = json.dumps([plugin, marketplace], ensure_ascii=False).lower()
-    assert "7 provider-neutral skills" in active_text or "7 multi-agent" in active_text
+    assert "4 provider-neutral skills" in active_text or "4 multi-agent" in active_text
+    assert "3 redirect stubs" in active_text
     assert "gemini" not in active_text
 
 

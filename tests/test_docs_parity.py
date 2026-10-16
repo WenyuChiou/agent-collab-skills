@@ -59,7 +59,12 @@ def test_active_relative_markdown_links_resolve():
         ROOT / "docs" / "example-walkthrough.md",
         ROOT / "docs" / "scenario-to-skill.md",
         ROOT / "docs" / "when-to-invoke.md",
+        ROOT / "docs" / "native-lanes.md",
+        ROOT / "docs" / "migration-0.6.md",
+        ROOT / "docs" / "observed-failure-modes.md",
+        ROOT / "docs" / "negative-example-gemini-drift.md",
         *sorted((ROOT / "skills").glob("*/SKILL.md")),
+        *sorted((ROOT / "skills").glob("*/references/*.md")),
     ]
     pattern = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
     failures: list[str] = []

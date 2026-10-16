@@ -1,6 +1,6 @@
 ---
 name: Skill request
-about: Propose extending one of the seven skills, or justify a new bounded skill.
+about: Propose extending one of the existing skills, or justify a new bounded skill.
 title: "[skill-request] "
 labels: enhancement
 ---
@@ -8,10 +8,10 @@ labels: enhancement
 ## What multi-agent pain point does this solve?
 
 <one paragraph: when does this hurt in real workflows? Is it a
-gap in the splitter → delegate → reconciler → gate pipeline, or
+gap in the planner → lanes → acceptance gate pipeline, or
 orthogonal?>
 
-## Why don't the existing seven skills cover it?
+## Why don't the existing skills cover it?
 
 <which skill is closest, and what it doesn't do>
 

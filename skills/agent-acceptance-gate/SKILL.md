@@ -1,113 +1,128 @@
 ---
 name: agent-acceptance-gate
-description: Use when reconciled multi-agent output needs an evidence-based PASS, CONDITIONAL PASS, or FAIL record before authorized delivery.
+description: Use when about to commit or push a diff that touches two or more locale variants of one file stem, adds catalog or listing entries, states benchmark numbers, release dates, or licenses for named frontier models, or merges output from any subagent or delegate. Reconciles the lane results, runs the matching preset, and returns PASS, CONDITIONAL PASS, or FAIL with evidence.
 ---
 
 # agent-acceptance-gate
 
-Run the final read-only verification step for a multi-agent round. The gate
-checks declared criteria and produces acceptance evidence. It never merges,
-commits, retries, or silently converts a decline, cancellation, timeout, or
-failure into success.
+The read-only check between "the lanes are done" and "commit or push". It
+reconciles results, runs the triggered presets, and returns a verdict. It
+never merges, commits, retries, or turns a decline, cancellation, timeout, or
+failure into success. Since 0.6.0 it includes the former
+`agent-output-reconciler`.
 
 ## Inputs
 
-- current provider-neutral plan and success criteria;
-- validated `TaskCheckpoint` and latest `PolicyDecision`;
-- task results, evidence references, and raw-log paths;
-- reconciliation report;
-- repository diff and project-specific verification commands;
+- the lane table or plan: lane ids, roles, scopes, acceptance criteria;
+- each lane's returned summary, evidence paths, and log paths;
+- the merged diff and the project's verification commands;
+- in harness mode, the `TaskCheckpoint` and latest `PolicyDecision`;
 - prior human decision records, if any.
 
 Historical provider fields may be read for migration only. Current checks use
-task IDs and roles (`primary-agent`, `delegated-executor`, `reviewer`, and
-`synthesizer`).
+lane or task ids and roles.
 
-## Mandatory preset routing
+## Step 0: Harness mode only
 
-Run the matching preset when a staged diff:
+Validate the plan, checkpoint, and policy before anything else. An unreadable
+configured policy, plan, or checkpoint is a fail-closed blocker: stop and
+report it. Do not infer missing policy values.
 
-- touches multiple locale variants of the same document stem;
-- adds entries to a catalog; or
-- changes a model-and-benchmark claim.
+## Step 1: Reconcile
 
-The bundled preset names are `multi-locale-mirror-sync`,
-`catalog-entry-add`, and `fact-check-frontier-models`.
+1. Inventory every planned lane. Keep missing, `null`, declined, cancelled,
+   timed-out, degraded, and failed as distinct states. Never invent an absent
+   result.
+2. Filter unusable results out of synthesis and record what was filtered and
+   why. A completed prose result is not `null` just because an optional
+   structured-output step failed.
+3. Compare changed files with each lane's declared scope. Record justified
+   transitive changes separately; unexplained drift is FAIL.
+4. Bind each result to its task, attempt, and baseline with the
+   [task-content evidence review](../../docs/task-content-evidence.md). Stale
+   or wrong-task evidence stays unverified. Account for pre-existing dirty
+   state and parallel writers before attributing a change. File times alone
+   cannot prove or disprove success.
+5. Re-run claimed checks or verify their evidence. A "success" with no
+   evidence is unverified.
+6. List file collisions, contradictory findings, incompatible assumptions, and
+   dependency-order violations.
 
-Presets encode additional failure-mode checks; they do not replace independent
-review or factual source verification. If a preset cannot run, report a blocker
-or explicit degraded state. Never claim PASS.
+Report shape: [references/reconciliation_template.md](references/reconciliation_template.md).
+Harness mode writes it to scratch; native mode keeps it short in the
+conversation or PR body.
 
-Presets are declarative review contracts, not an executable engine in the
-Python harness. For delegated content tasks, follow the required
-[task-content evidence review](../../docs/task-content-evidence.md). Retained
-mtime checks are advisory: reject missing/stale task evidence, verify the
-current baseline/candidate and scope, and allow justified unchanged output only
-when the task contract permits it. Hashes identify bytes, not semantic truth.
+## Step 2: Presets (mandatory when triggered)
 
-## Workflow
+| Trigger in the diff | Preset |
+|---|---|
+| two or more locale variants of one file stem | `multi-locale-mirror-sync` |
+| new catalog or listing entries | `catalog-entry-add` |
+| a named frontier model with a benchmark number, release date, or license claim | `fact-check-frontier-models` |
 
-1. Validate the plan, checkpoint, and policy. Unreadable configured policy is a
-   fail-closed blocker.
-2. Inventory all tasks and required artifacts. Missing, `null`, declined,
-   cancelled, timeout, degraded, and failed states remain distinct.
-3. Verify each declared success criterion with a deterministic command,
-   artifact check, or explicit manual-check requirement. Never invent missing
-   criteria.
-4. Compare changed files with declared task scopes and record unexplained drift
-   as FAIL.
-5. Check structured statuses, claimed tests, evidence references, reconciliation
-   blockers, and unresolved high-severity risks.
-6. Run triggered presets and applicable project invariants. For external facts,
-   cite authoritative sources and mark whether evidence was locally verified.
-7. Evaluate canonical policy after the gate cycle. Respect v2 action/slice/goal
-   scope and eligible automatic slice continuation; v1 behavior is unchanged.
-8. Write a new immutable acceptance evidence record. Do not overwrite a prior
-   run or human decision.
-9. Report acceptance to the primary-agent and user. The host checks existing
-   authorization for delivery; do not demand a fresh approval solely because
-   review, session, or slice changed. A genuinely new human gate still needs a
-   separate recorded decision bound to the specific affected action.
+Presets are declarative review contracts in `presets/`, not an executable
+engine; follow their checks. They add to independent review and source
+verification and never replace them. If a triggered preset cannot run, report
+a blocker or an explicit degraded state, never PASS. Structural parity
+(heading counts, line counts, ordering) is not content parity: check meaning
+adversarially and quote the passages that disagree.
 
-All numeric budgets and retry limits come only from the canonical policy. This
-skill and its presets must not copy default values.
+## Step 3: Verify and decide
+
+1. Run each lane's acceptance criteria and the merge-level verification
+   command on the merged result. Never invent missing criteria; mark manual
+   checks as manual.
+2. Check unresolved high-severity risks and reconciliation blockers.
+3. For external facts, cite authoritative sources and say whether each was
+   verified locally.
+4. Harness mode: evaluate the policy after the gate cycle and write a new
+   immutable acceptance record. Never overwrite a prior run or human
+   decision.
+5. Native mode: put the verdict and its evidence in the conversation or the
+   PR body.
+
+All numeric budgets and retry limits come from the canonical policy in harness
+mode or from the host in native mode. This skill and its presets do not copy
+default values.
 
 ## Verdicts
 
-- `PASS`: every required check passed and no blocker remains. This means
-  technically acceptable, not human-authorized to merge.
-- `CONDITIONAL PASS`: deterministic checks passed but an explicit human action,
-  degraded optional check, or documented non-blocking condition remains.
+- `PASS`: every required check passed and no blocker remains. Technically
+  acceptable; not authorization to merge.
+- `CONDITIONAL PASS`: deterministic checks passed, but an explicit human
+  action, a degraded optional check, or a documented non-blocking condition
+  remains.
 - `FAIL`: any required criterion, scope, policy, evidence, preset, or blocker
   check failed.
 
 A human may approve a documented exception, but the original gate record stays
-immutable. The new decision must include gate, actor, decision, timestamp,
-rationale, and affected action hash. A human override does not rewrite a failed
-test into a passing test.
+unchanged. The new decision records gate, actor, decision, timestamp,
+rationale, and affected action hash. An override never rewrites a failed test
+into a passing one. Existing authorization may already cover delivery; do not
+ask again just because a review, session, or slice ended. A genuinely new
+human gate still needs a separate recorded decision bound to the specific
+affected action.
 
-## Output contract
+## Output
 
-Write an acceptance evidence artifact with:
-
-- run ID, timestamp, plan/checkpoint/policy references, and action hash;
-- per-task status and criterion results;
+- verdict;
+- per-lane status and criterion results, including filtered or missing lanes;
 - scope and preset results;
-- test commands, exit codes, bounded excerpts, and artifact paths;
+- commands with exit codes, bounded excerpts, and artifact paths;
 - risks, degraded checks, and blockers;
-- technical verdict;
-- pending or recorded human decision reference.
+- pending or recorded human decision reference;
+- in harness mode, also the run ID, timestamp, plan, checkpoint, and policy
+  references, and the action hash that any later human decision binds to.
 
-Coordination scratch is gitignored by default. Promote only explicitly required
-checkpoint snapshots, shipping artifacts, or acceptance evidence into a
-repository-owned path.
-
-See `references/acceptance_checklist.md` for the verification taxonomy.
+Coordination scratch is gitignored by default. Promote only an explicitly
+required checkpoint snapshot, shipping artifact, or acceptance record. See
+[references/acceptance_checklist.md](references/acceptance_checklist.md) for
+the verification taxonomy.
 
 ## Prohibitions
 
 - Do not run implementation agents or decide retries.
-- Do not mutate source, plan, checkpoint history, or canonical memory.
+- Do not mutate source, the plan, checkpoint history, or canonical memory.
 - Do not overwrite prior acceptance or human-decision records.
 - Do not treat agent consensus as evidence.
 - Do not commit, merge, push, release, or delete branches.
