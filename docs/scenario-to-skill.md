@@ -4,13 +4,16 @@ Route by collaboration need, not by provider name.
 
 | Scenario | Skill | Evidence produced |
 |---|---|---|
-| Several tasks need disjoint scopes and dependencies | `agent-task-splitter` | schema-v2 plan and generic task packets |
-| Context or runtime pressure may interrupt work | `agent-context-budget` | validated checkpoint handoff |
-| One agent needs bounded self-correction | `agent-plan-act-reflect` | cycle evidence and PolicyDecision |
-| Multiple results may conflict or be missing | `agent-output-reconciler` | reconciliation report |
-| A consequential trade-off has two plausible positions | `agent-debate` | adversarial evidence and pending human decision |
-| A durable lesson may be useful later | `agent-shared-memory` | memory proposal, never a direct canonical write |
-| A reconciled round needs a shipping-quality gate | `agent-acceptance-gate` | immutable technical verdict |
+| About to run two or more subagents, workflow lanes, or delegates on one goal | `agent-task-splitter` | lane table and capped briefs (native); schema-v2 plan and task packets (harness) |
+| Launching parallel or background lanes, or a result or handoff is too large for the primary context | `agent-context-budget` | capped returns, primer, checkpoint handoff |
+| A durable decision may be useful later | `agent-context-budget` (Durable decisions) | memory proposal, never a direct canonical write |
+| An unattended multi-cycle loop under a configured policy | `agent-context-budget` ([harness loop](../skills/agent-context-budget/references/harness-loop.md)) | cycle evidence and PolicyDecision |
+| A consequential trade-off has two plausible positions | `agent-debate` | opposed reviews and a pending human decision |
+| Before commit or push: merged lane output, locale variants, catalog entries, or frontier-model benchmark claims | `agent-acceptance-gate` | reconciliation plus an immutable technical verdict |
+
+`agent-output-reconciler`, `agent-shared-memory`, and `agent-plan-act-reflect`
+are redirect stubs in 0.6.0 and are removed in 0.7.0; see
+[migration 0.6](migration-0.6.md).
 
 ## Role adapters
 

@@ -1,14 +1,16 @@
 # agent-collab-workspace plugin
 
-This plugin exposes seven provider-neutral collaboration skills:
+This plugin exposes four provider-neutral collaboration skills:
 
-- `agent-task-splitter`
-- `agent-context-budget`
-- `agent-plan-act-reflect`
-- `agent-output-reconciler`
-- `agent-debate`
-- `agent-shared-memory`
-- `agent-acceptance-gate`
+- `agent-task-splitter`: fan-out planner (lane table, model tiers, disjoint
+  scopes, capped returns, merge step)
+- `agent-context-budget`: return caps, primers, and proposal-only memory
+- `agent-debate`: two opposed reviewers for a consequential decision
+- `agent-acceptance-gate`: reconcile lane output, run presets, verdict
+
+Three redirect stubs remain until 0.7.0: `agent-output-reconciler` (now in
+the gate), `agent-shared-memory` (now in context budget), and
+`agent-plan-act-reflect` (deprecated). See `docs/migration-0.6.md`.
 
 Install from the marketplace:
 

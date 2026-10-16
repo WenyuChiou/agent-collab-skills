@@ -14,7 +14,7 @@
 
 If this PR changes how `agent-task-splitter` writes
 `.ai/task_<NNN>_<slug>.md`, how a host adapter returns results, or how
-`agent-output-reconciler` reads evidence, link the corresponding host-adapter
+`agent-acceptance-gate` reconciles evidence, link the corresponding host-adapter
 PR or issue:
 
 - Upstream coordination: <link, or "N/A">
@@ -22,7 +22,7 @@ PR or issue:
 ## Checklist
 
 - [ ] `python -m pytest tests/ -q` passes locally
-- [ ] If a skill was added or removed: manifests, both READMEs, install scripts, and `tests/test_catalog.py` agree on the seven-skill inventory or document the approved migration
+- [ ] If a skill was added or removed: manifests, both READMEs, install scripts, and `tests/test_catalog.py` agree on the skill inventory (active skills and redirect stubs), `python scripts/check_skill_contracts.py` passes, or the approved migration is documented
 - [ ] If schema or trigger phrases changed: README + bundle README regenerated, examples in SKILL.md still match
 - [ ] CONTRIBUTING.md updated if the interop contract changed
 - [ ] `.github` contributor templates contain no stale provider routing or skill counts

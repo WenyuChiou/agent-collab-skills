@@ -1,6 +1,6 @@
 # Agent Collab Skills
 
-[English](README.md) · [公開 harness 合約](docs/public-harness-contract.md) · [0.4 遷移指南](docs/migration-0.4.md) · [0.5 goal-slice 遷移指南](docs/migration-0.5.md)
+[English](README.md) · [公開 harness 合約](docs/public-harness-contract.md) · [Native lanes 對應說明](docs/native-lanes.md) · [0.6 遷移指南](docs/migration-0.6.md) · [0.5 goal-slice 遷移指南](docs/migration-0.5.md) · [0.4 遷移指南](docs/migration-0.4.md)
 
 本文件使用繁體中文。
 
@@ -27,7 +27,7 @@ flowchart LR
     Y -->|stop| Q{停止 scope}
     Q -->|action| X[診斷或等待]
     Q -->|goal| B[明確 blocker]
-    E --> O[輸出對帳]
+    E --> O[Acceptance gate：結果對帳]
     R --> O
     O --> A[Acceptance evidence]
     A --> H
@@ -38,17 +38,35 @@ Deterministic layer 控制狀態與限制；agents 負責 prose、實作、revie
 synthesis。破壞性合約、memory promotion、語意驗收與 shipping 仍由人類
 負責。
 
-## 七個 skills
+## Skills
 
-| Skill | 職責 |
-|---|---|
-| `agent-task-splitter` | 建立 provider-neutral task packets、角色、依賴、scope 與 acceptance criteria。 |
-| `agent-context-budget` | 驗證 policy/checkpoint context，建立有界 handoff，不複製數值預設。 |
-| `agent-plan-act-reflect` | 執行產生證據的修正循環；每輪後與每次 spawn 前重新評估 policy。 |
-| `agent-output-reconciler` | 保留缺失與失敗結果，呈現 scope drift、矛盾與衝突。 |
-| `agent-debate` | 為真正有爭議的決策進行有界 adversarial review；不以投票決定事實。 |
-| `agent-shared-memory` | 只產生 proposal 並附加已核准事件；不覆寫 canonical memory。 |
-| `agent-acceptance-gate` | 在獨立的人類決策前，產生不可變的 PASS、CONDITIONAL PASS 或 FAIL 證據。 |
+每個 skill 依「當下情境」觸發，不只在有人提出要求時才用：
+
+| Skill | 何時使用 | 職責 |
+|---|---|---|
+| `agent-task-splitter` | 即將針對同一目標啟動兩個以上的 subagent、workflow lane 或 delegate | Fan-out 規劃：一張 lane 表，逐條寫明角色、model 等級、互不重疊的可寫範圍、有界 brief 與回傳上限；啟動前先定好合併與驗證步驟。 |
+| `agent-context-budget` | 啟動平行或背景 lane，或結果、handoff 比簡短摘要還長 | 限制回傳大小（摘要直接回傳，細節給路徑）、為機械性 lane 選用較便宜的 model 等級、撰寫 primer，並把需要長期保留的決策寫成 proposal。 |
+| `agent-debate` | 重大決策有兩個都說得通的選項 | 兩個立場相反的 reviewer 看同一份證據，事先講明回合上限；綜合結果交給人類。不以投票決定事實。 |
+| `agent-acceptance-gate` | 即將 commit 或 push 合併後的 lane 輸出、多語系版本、catalog 條目，或關於特定前沿模型的宣稱（benchmark、發布日期、授權） | 結果對帳（保留失敗結果）、執行對應觸發的 preset，並產生不可變的 PASS、CONDITIONAL PASS 或 FAIL 證據。 |
+
+轉址 stub，將在 0.7.0 移除（見 [0.6 遷移指南](docs/migration-0.6.md)）：
+`agent-output-reconciler` → `agent-acceptance-gate`；
+`agent-shared-memory` → `agent-context-budget`；
+`agent-plan-act-reflect` → 已棄用，其 harness loop 移到
+`agent-context-budget`。
+
+## Native mode 與 harness mode
+
+預設是 native mode。所有 lane 都在同一個 host session 內執行、且使用者在場時，
+lane 表與 brief 就寫在對話裡，沿用 host 自己的限制與權限，不在 `.coord/`
+寫入 plan、packet 或 checkpoint（最多只寫 memory proposal）。
+[Native lanes](docs/native-lanes.md) 說明各角色如何對應到 Claude Code 的
+Agent、SendMessage、Workflow 與 worktree 機制。
+
+Harness mode 會再套用下方的 policy 與 checkpoint 合約，適用情況：一輪工作
+跨 session 或跨工具、無人看管地執行、中斷後必須恢復、需要簽章的人類決策關卡，
+或已設定 `AGENT_COLLAB_POLICY`。只要設定了 policy 就一定套用；無法讀取時
+fail closed。
 
 ## 公開 harness package
 
@@ -138,6 +156,7 @@ machine-readable contract。
 ```bash
 python -m pip install -e .
 python -m pytest -q
+python scripts/check_skill_contracts.py
 agent-collab doctor --json
 ```
 

@@ -22,6 +22,12 @@ description: |
   source URL. Hallucination chain detection — if even ONE of the
   4-tuple fields is fabricated, flag the whole row.
 
+# Kept in sync with the agent-acceptance-gate description and preset
+# table by scripts/check_skill_contracts.py.
+trigger:
+  situation: "a diff states benchmark numbers, release dates, or licenses for named frontier models"
+  description_keyword: "benchmark"
+
 invocation_param:
   file:
     description: "File containing the model claims to verify"

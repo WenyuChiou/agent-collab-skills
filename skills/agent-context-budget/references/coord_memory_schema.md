@@ -149,3 +149,28 @@ a reviewed, human-approved proposal.
 .coord/ is ignored by default. Do not commit every event or proposal. Promote
 only an explicit checkpoint snapshot, shipping artifact, or acceptance record
 into a repository-owned evidence path.
+
+## Modes and report
+
+Formerly the body of `agent-shared-memory` (merged into `agent-context-budget`
+in 0.6.0).
+
+- **Read**: return current decisions (following supersedes references),
+  unresolved questions, relevant artifact and evidence pointers, recent
+  execution outcomes, and conflicts or stale claims. Follow raw-log paths only
+  when needed; do not load raw agent logs into the primary session.
+- **Propose**: write a proposal as described above.
+- **Decide**: only a human may approve, decline, or revise. Record actor,
+  decision, timestamp, rationale, affected proposal/action hash, and HMAC
+  authorization from the trusted host. Decline and timeout remain
+  non-success; revise creates or updates a proposal and is not approval.
+- **Apply**: only a proposal whose recorded state is approved and whose
+  immutable `action` bytes still match `decision.affected_action_hash`.
+  Append one new event; never edit the target event.
+
+Use this memory for agent coordination decisions, questions, artifact
+pointers, and execution outcomes. Research truth belongs in research evidence
+stores; paper claims belong in the paper's claim and evidence contract.
+
+Always report: mode, proposal or event id, state, evidence refs, whether
+canonical memory changed, and whether a human decision is still required.

@@ -8,6 +8,12 @@ description: |
   contracts. This preset does not infer filenames from a fixed three-locale
   convention and does not use line count as a translation-quality proxy.
 
+# Kept in sync with the agent-acceptance-gate description and preset
+# table by scripts/check_skill_contracts.py.
+trigger:
+  situation: "a diff touches two or more locale variants of one file stem"
+  description_keyword: "locale"
+
 invocation_param:
   files:
     description: "Comma-separated locale files; two or more are required."

@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.0] - 2026-10-16
+
+Skill text only; the `agent-collab` CLI, schemas, exit codes, and
+policy/checkpoint semantics are unchanged. Migration and rollback:
+`docs/migration-0.6.md`.
+
+### Changed
+
+- Descriptions now name the situation that makes each skill apply (about to
+  fan out, launching background lanes, about to commit or push) instead of
+  describing an abstract need or waiting for a user request. A 90-day
+  transcript review by the maintainer (installed copy: 0.3.1) found zero
+  invocations of any bundle skill despite frequent multi-agent work; the
+  0.4/0.5 descriptions kept the same need-or-request style.
+- `agent-task-splitter` is now a fan-out planner: one lane table with role,
+  model tier, disjoint write scope, bounded brief, and capped return per
+  lane, plus a merge-and-verify step fixed before launch. The schema-v2 plan
+  and task packets moved to `references/harness-plan.md`.
+- Native mode is the default for an in-session fan-out with the user present:
+  no `.coord/` plan, packets, or checkpoint (a memory proposal at most),
+  host limits apply. Harness mode (policy, checkpoint,
+  `.coord/`) applies across sessions or tools, for unattended loops, resume,
+  signed human gates, or whenever `AGENT_COLLAB_POLICY` is configured; a
+  configured policy still fails closed when unreadable.
+- `agent-acceptance-gate` fires before commit or push on merged lane output
+  or a preset trigger, and now includes reconciliation as step 1.
+- `agent-context-budget` covers return caps, model-tier choice, primers, and
+  proposal-only durable decisions; harness steps are kept.
+- `agent-debate` is two opposed reviewers on the same evidence with a stated
+  round cap.
+
+### Deprecated (stubs removed in 0.7.0)
+
+- `agent-output-reconciler`: merged into `agent-acceptance-gate`.
+- `agent-shared-memory`: merged into `agent-context-budget`; schema moved to
+  `agent-context-budget/references/coord_memory_schema.md`.
+- `agent-plan-act-reflect`: deprecated; the harness loop moved to
+  `agent-context-budget/references/harness-loop.md`.
+
+### Added
+
+- `docs/native-lanes.md`: Claude Code host adapter (Agent parallel and
+  background runs, SendMessage, Workflow per-lane model and effort, worktree
+  isolation, CLI delegates).
+- `scripts/check_skill_contracts.py` and `tests/test_skill_contracts.py`:
+  frontmatter, size caps, situational description terms, redirect stubs, and
+  gate preset triggers stay consistent.
+- A `trigger` block (situation and description keyword) in each gate preset.
+- Historical banners on the Gemini-era evidence docs.
+
 ## [0.5.1] - 2026-09-04
 
 - V2 context-only limits request action-scoped compaction instead of stopping

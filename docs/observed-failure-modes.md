@@ -1,5 +1,10 @@
 # Observed Failure Modes — what actually breaks when you delegate to Codex / Gemini
 
+> Historical evidence only (2026-05 dogfood). The Gemini lane was archived
+> on 2026-06-18 and is not an active route; see
+> [Gemini history](migration-0.4.md#gemini-history). Skill names and step
+> numbers below refer to the release current at the time, not to 0.6.
+
 > Catalog of real failures encountered while dogfooding the bundle on
 > `awesome-agentic-ai-zh` Stage 6 (2026-05-13). Each entry: what
 > happened, why, the skill change that addresses it.

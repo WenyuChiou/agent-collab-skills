@@ -26,7 +26,8 @@ Resume from a validated checkpoint with a long history. Expected:
 Give an executor a task packet with explicit scope and inject an out-of-scope
 change. Expected:
 
-- reconciler preserves the executor's result but flags the path;
+- the acceptance gate's reconcile step preserves the executor's result but
+  flags the path;
 - acceptance gate returns FAIL;
 - no automatic retry or commit occurs.
 
