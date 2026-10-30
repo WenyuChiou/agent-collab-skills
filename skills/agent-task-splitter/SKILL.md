@@ -89,9 +89,18 @@ Write down, before any lane starts:
     External actions: none unless named here.
     Edits required: yes | unchanged output allowed because <reason>
 
+    Goal this lane serves: <the outcome of the whole job, one line>
+    Already decided (do not reopen): <decisions, copied word for word>
+
     Acceptance: <runnable check>
-    Return (capped): status; short summary; files changed; checks run and
+    Return (capped): status; short summary; files changed; the acceptance
+    command and the last lines of its actual output; other checks run and
     results; risks; blockers. Put long output in a file and return its path.
+
+If the job already has a plan header (for example from the `aim-higher`
+skill), copy its outcome, outside check, not-doing and already-decided lines
+into these fields instead of rewriting them. Without one, fill the fields
+yourself.
 
 ## Drift guards
 
@@ -103,6 +112,10 @@ Write down, before any lane starts:
 - State whether edits are required. A lane that reports success without
   changing its required files has failed unless the brief allowed unchanged
   output.
+- Check each return against its brief when it arrives, not only at the end: a
+  "done" without the acceptance command's actual output stays unverified, and
+  a result that departs from the brief's steps or decided items is drift even
+  when its own checks pass.
 - Missing, null, failed, declined, cancelled, and timed-out lanes stay
   non-success. Filter them out of synthesis but keep their records.
 - Agent agreement never replaces running the checks.

@@ -22,6 +22,19 @@
         "url": "https://github.com/WenyuChiou/agent-collab-skills.git",
         "ref": "main"
       }
+    },
+    {
+      "name": "aim-higher",
+      "description": "Separate, optional planning skill: before non-trivial work, write an 8-line plan header that aims at the outcome above the task and names how the result will be checked.",
+      "category": "productivity",
+      "homepage": "https://github.com/WenyuChiou/aim-higher",
+      "version": "0.1.0",
+      "strict": true,
+      "source": {
+        "source": "url",
+        "url": "https://github.com/WenyuChiou/aim-higher.git",
+        "ref": "main"
+      }
     }
   ]
 }

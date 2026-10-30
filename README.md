@@ -152,6 +152,16 @@ Or use `scripts/install-all.sh` / `scripts/install-all.ps1`. The plugin and
 Python package are complementary: skills describe collaboration behavior; the
 package validates and evaluates the machine-readable contract.
 
+The same marketplace also lists
+[`aim-higher`](https://github.com/WenyuChiou/aim-higher), a separate,
+optional planning skill. It writes a short plan header before the work starts;
+`agent-task-splitter` and `agent-acceptance-gate` read that header when one
+exists and work as before when it does not:
+
+```bash
+claude plugin install aim-higher@agent-collab-skills
+```
+
 ## Development
 
 ```bash
