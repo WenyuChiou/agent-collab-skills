@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+Skill text and marketplace listing only; the `agent-collab` CLI, schemas,
+exit codes, and policy/checkpoint semantics are unchanged.
+
+### Added
+
+- The marketplace lists `aim-higher`, a separate and optional planning skill
+  from its own repository. Nothing in this bundle requires it.
+- `agent-task-splitter` briefs carry the goal the lane serves and the
+  decisions already made (copied word for word), and a lane's return must
+  include the acceptance command and the last lines of its actual output.
+  When a plan header exists (for example from `aim-higher`), its lines are
+  copied into the brief instead of rewritten.
+- `agent-task-splitter` drift guard: check each return against its brief when
+  it arrives. A delegated run that departs from the brief's steps is drift even
+  when its own checks pass.
+- `agent-acceptance-gate` checks the merged result against the job's stated
+  outcome and outside check when a plan header exists, and treats a lane
+  return without its acceptance command's actual output as unverified.
+
 ## [0.6.0] - 2026-10-16
 
 Skill text only; the `agent-collab` CLI, schemas, exit codes, and

@@ -14,6 +14,9 @@ failure into success. Since 0.6.0 it includes the former
 ## Inputs
 
 - the lane table or plan: lane ids, roles, scopes, acceptance criteria;
+- the job's stated outcome and outside check, if a plan header exists (for
+  example from the `aim-higher` skill): the merged result is checked against
+  them, not only against each lane's own criteria;
 - each lane's returned summary, evidence paths, and log paths;
 - the merged diff and the project's verification commands;
 - in harness mode, the `TaskCheckpoint` and latest `PolicyDecision`;
@@ -44,7 +47,8 @@ report it. Do not infer missing policy values.
    state and parallel writers before attributing a change. File times alone
    cannot prove or disprove success.
 5. Re-run claimed checks or verify their evidence. A "success" with no
-   evidence is unverified.
+   evidence is unverified, and so is a lane return that does not quote its
+   acceptance command's actual output.
 6. List file collisions, contradictory findings, incompatible assumptions, and
    dependency-order violations.
 

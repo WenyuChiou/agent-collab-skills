@@ -79,12 +79,23 @@ def test_readmes_and_installers_list_every_active_skill():
             assert name in text, f"{path.name} is missing {name}"
 
 
-def test_marketplace_contains_one_source_repo_bundle():
+def test_marketplace_lists_this_bundle_once_and_companions_by_url():
     data = json.loads(
         (ROOT / ".claude-plugin" / "marketplace.json").read_text(
             encoding="utf-8"
         )
     )
     assert data["name"] == "agent-collab-skills"
-    assert len(data["plugins"]) == 1
-    assert data["plugins"][0]["source"]["source"] == "url"
+    bundles = [p for p in data["plugins"] if p["name"] == "agent-collab-workspace"]
+    assert len(bundles) == 1
+    assert data["plugins"][0]["name"] == "agent-collab-workspace"
+    for plugin in data["plugins"]:
+        # every entry, including optional companions from other repositories,
+        # installs from a GitHub URL at a named ref, never from a path in this
+        # repository
+        assert plugin["source"]["source"] == "url"
+        assert plugin["source"]["url"].startswith("https://github.com/")
+        assert plugin["source"].get("ref")
+    companions = [p for p in data["plugins"] if p["name"] != "agent-collab-workspace"]
+    for plugin in companions:
+        assert "agent-collab-skills" not in plugin["source"]["url"]

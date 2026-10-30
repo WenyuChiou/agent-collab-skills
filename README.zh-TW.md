@@ -151,6 +151,15 @@ claude plugin install agent-collab-workspace@agent-collab-skills
 Python package 是互補層：skills 描述協作行為；package 驗證並評估
 machine-readable contract。
 
+同一個 marketplace 也列出
+[`aim-higher`](https://github.com/WenyuChiou/aim-higher)，這是一個獨立、
+可選用的規劃 skill。它在動工前寫一段簡短的計畫標頭；有這段標頭時，
+`agent-task-splitter` 與 `agent-acceptance-gate` 會讀取它，沒有時照原本方式運作：
+
+```bash
+claude plugin install aim-higher@agent-collab-skills
+```
+
 ## 開發
 
 ```bash
