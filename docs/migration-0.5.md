@@ -104,6 +104,22 @@ check accepted evidence and actual workspace state before replaying any tool.
 
 The checkpoint retains slice usage, cumulative totals, accepted evidence,
 hash-chained transition receipts, failed input revisions, and next step.
+New transition receipts store only references newly accepted at that transition,
+in their current task-list order. `accepted_evidence` remains the cumulative
+set, equal to the union of references in all history receipts. A reference
+already accepted is not new when it is removed from and later reintroduced into
+the current task list. The receipt's `task_sha256` still hashes the complete
+task object, including its complete current evidence list.
+
+Older receipts may contain cumulative lists. Readers accept older, incremental,
+and mixed histories without changing schema version 2; old receipt bytes and
+hashes are never rewritten. Consumers needing cumulative evidence at a boundary
+must union receipts through that boundary, rather than assuming one receipt is
+a cumulative snapshot. Existing task-input uniqueness checks remain unchanged;
+legacy receipt lists are not retroactively required to be unique. This change
+limits future duplication, but does not compact existing histories, reset usage
+or failures, change authorization, or establish actual task progress.
+
 `refresh_totals` adds current absolute slice counters to the retained baseline;
 it must never be used to fabricate lower observed counters. Hosts should write
 checkpoint observations under the same lock and compare-and-swap discipline.
