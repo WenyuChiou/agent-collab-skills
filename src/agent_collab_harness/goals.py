@@ -607,13 +607,14 @@ def advance_checkpoint(state, policy, *, request_id, authorization_keys=None):
     result = evaluate_goal(state, policy, authorization_keys=authorization_keys)
     if result.decision != "checkpoint" or not result.auto_continue:
         raise HarnessValidationError("advance not authorized by slice decision")
+    accepted = set(state["accepted_evidence"])
     event = {
         "slice_id": state["slice_id"],
         "request_id": request_id,
         "previous_sha256": state["history"][-1]["sha256"] if state["history"] else None,
         "totals": deepcopy(state["totals"]),
         "task_sha256": canonical_sha256(state["task"]),
-        "evidence_refs": list(state["task"]["evidence_refs"]),
+        "evidence_refs": [ref for ref in state["task"]["evidence_refs"] if ref not in accepted],
     }
     event["sha256"] = canonical_sha256(event)
     state["history"].append(event)
